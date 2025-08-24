@@ -2,20 +2,20 @@
 """Smart Clipboard MCP Server - Production Implementation."""
 
 import asyncio
-import json
 import hashlib
+import json
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp.server import Server
-from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
-from mcp.server.models import InitializationOptions
 from mcp.server.lowlevel import NotificationOptions
+from mcp.server.models import InitializationOptions
+from mcp.server.stdio import stdio_server
+from mcp.types import TextContent, Tool
 
-from smart_clipboard.core.storage import ClipStorage
-from smart_clipboard.core.intelligence import UniversalIntelligence
 from smart_clipboard.core.cache import ClipCache
+from smart_clipboard.core.intelligence import UniversalIntelligence
+from smart_clipboard.core.storage import ClipStorage
 
 
 class SmartClipboardMCPServer:
@@ -35,7 +35,7 @@ class SmartClipboardMCPServer:
         """Register MCP protocol handlers."""
 
         @self.app.list_tools()
-        async def list_tools() -> List[Tool]:
+        async def list_tools() -> list[Tool]:
             """Return MCP tools following 2025-06-18 specification."""
             return [
                 Tool(
@@ -122,7 +122,7 @@ class SmartClipboardMCPServer:
             ]
 
         @self.app.call_tool()
-        async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+        async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             """Handle MCP tool calls with structured output."""
             try:
                 result = await self._dispatch_tool_call(name, arguments)
@@ -139,8 +139,8 @@ class SmartClipboardMCPServer:
                 ]
 
     async def _dispatch_tool_call(
-        self, name: str, arguments: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, name: str, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
         """Dispatch tool calls to appropriate handlers."""
         handlers = {
             "clip_add": self._handle_clip_add,
@@ -156,7 +156,7 @@ class SmartClipboardMCPServer:
 
         return await handler(arguments)
 
-    async def _handle_clip_add(self, args: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_clip_add(self, args: dict[str, Any]) -> dict[str, Any]:
         """Handle clip_add tool call."""
         content = args["content"]
         source = args.get("source", "manual")
@@ -187,7 +187,7 @@ class SmartClipboardMCPServer:
             "processing": "background",
         }
 
-    async def _handle_clip_search(self, args: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_clip_search(self, args: dict[str, Any]) -> dict[str, Any]:
         """Handle clip_search tool call."""
         query = args["query"]
         limit = args.get("limit", 5)
@@ -217,14 +217,14 @@ class SmartClipboardMCPServer:
         await self.cache.set(cache_key, response, ttl=300)
         return response
 
-    async def _handle_clip_list(self, args: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_clip_list(self, args: dict[str, Any]) -> dict[str, Any]:
         """Handle clip_list tool call."""
         limit = args.get("limit", 10)
         clips = await self.storage.list_recent(limit)
 
         return {"clips": clips, "count": len(clips), "limit": limit}
 
-    async def _handle_clip_remove(self, args: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_clip_remove(self, args: dict[str, Any]) -> dict[str, Any]:
         """Handle clip_remove tool call."""
         clip_id = args["clip_id"]
 
@@ -235,12 +235,12 @@ class SmartClipboardMCPServer:
         else:
             return {"id": clip_id, "status": "not_found"}
 
-    async def _handle_clip_stats(self, args: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_clip_stats(self, args: dict[str, Any]) -> dict[str, Any]:
         """Handle clip_stats tool call."""
         stats = await self.storage.get_stats()
         return stats
 
-    async def _process_clip_background(self, clip_id: str, clip_data: Dict[str, Any]):
+    async def _process_clip_background(self, clip_id: str, clip_data: dict[str, Any]):
         """Background processing for clips."""
         try:
             content = clip_data["content"]

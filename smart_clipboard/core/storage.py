@@ -2,10 +2,9 @@
 
 import os
 import time
-from typing import List, Dict, Optional, Any
+from typing import Any
+
 import lancedb
-import pandas as pd
-from smart_clipboard.models.schemas import Clip, SearchResult
 
 
 class ClipStorage:
@@ -13,7 +12,7 @@ class ClipStorage:
 
     def __init__(self):
         # Use local storage in user's home directory
-        self.db_path = os.path.expanduser("~/.smart-clipboard/lancedb")
+        self.db_path = os.path.join(os.getcwd(), ".smart-clipboard", "lancedb")
         os.makedirs(self.db_path, exist_ok=True)
 
         self.db = None
@@ -37,23 +36,20 @@ class ClipStorage:
         """Initialize clips table if not exists."""
         try:
             if "clips" not in self.db.table_names():
-                # Create table with initial dummy record
-                initial_data = [
-                    {
-                        "id": "init",
-                        "content": "initialization record",
-                        "embedding": [0.0] * 1536,  # OpenAI embedding dimension
-                        "tags": [],
-                        "timestamp": 0.0,
-                        "source": "init",
-                        "is_agent": False,
-                    }
-                ]
+                # Create empty table with proper schema
+                import pyarrow as pa
 
-                self.table = self.db.create_table("clips", data=initial_data)
+                schema = pa.schema([
+                    ("id", pa.string()),
+                    ("content", pa.string()),
+                    ("embedding", pa.list_(pa.float32(), 768)),
+                    ("tags", pa.list_(pa.string())),
+                    ("timestamp", pa.float64()),
+                    ("source", pa.string()),
+                    ("is_agent", pa.bool_()),
+                ])
 
-                # Remove initialization record
-                self.table.delete("id = 'init'")
+                self.table = self.db.create_table("clips", schema=schema)
             else:
                 self.table = self.db.open_table("clips")
 
@@ -65,9 +61,9 @@ class ClipStorage:
         self,
         clip_id: str,
         content: str,
-        embedding: Optional[List[float]],
-        tags: List[str],
-        metadata: Dict[str, Any],
+        embedding: list[float] | None,
+        tags: list[str],
+        metadata: dict[str, Any],
     ) -> bool:
         """Store clip with embedding and metadata."""
         await self._ensure_initialized()
@@ -75,7 +71,7 @@ class ClipStorage:
         try:
             # Handle missing embedding
             if not embedding:
-                embedding = [0.0] * 1536
+                embedding = [0.0] * 768
 
             record = {
                 "id": clip_id,
@@ -85,7 +81,6 @@ class ClipStorage:
                 "timestamp": time.time(),
                 "source": metadata.get("source", "unknown"),
                 "is_agent": metadata.get("is_agent", False),
-                "processed_at": metadata.get("processed_at", time.time()),
             }
 
             # Check if record already exists
@@ -96,7 +91,7 @@ class ClipStorage:
                 if existing:
                     # Update existing record
                     self.table.delete(f"id = '{clip_id}'")
-            except:
+            except Exception:
                 pass  # Record doesn't exist, which is fine
 
             # Add new record
@@ -108,8 +103,8 @@ class ClipStorage:
             return False
 
     async def search(
-        self, query_embedding: List[float], limit: int = 5
-    ) -> List[Dict[str, Any]]:
+        self, query_embedding: list[float], limit: int = 5
+    ) -> list[dict[str, Any]]:
         """Semantic search using vector similarity."""
         await self._ensure_initialized()
 
@@ -143,7 +138,7 @@ class ClipStorage:
             print(f"Search error: {e}")
             return []
 
-    async def list_recent(self, limit: int = 10) -> List[Dict[str, Any]]:
+    async def list_recent(self, limit: int = 10) -> list[dict[str, Any]]:
         """Get most recent clips ordered by timestamp."""
         await self._ensure_initialized()
 
@@ -168,7 +163,7 @@ class ClipStorage:
                             if len(row["content"]) > 200
                             else row["content"]
                         ),
-                        "tags": row.get("tags", []),
+                        "tags": row.get("tags", []).tolist() if hasattr(row.get("tags", []), 'tolist') else row.get("tags", []),
                         "timestamp": row.get("timestamp", 0),
                         "source": row.get("source", "unknown"),
                     }
@@ -198,7 +193,7 @@ class ClipStorage:
             print(f"Remove error: {e}")
             return False
 
-    async def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> dict[str, Any]:
         """Get statistics about stored clips."""
         await self._ensure_initialized()
 
@@ -214,8 +209,8 @@ class ClipStorage:
                     "storage_path": self.db_path,
                 }
 
-            agent_clips = len(df[df["is_agent"] == True])
-            manual_clips = len(df[df["is_agent"] == False])
+            agent_clips = len(df[df["is_agent"]])
+            manual_clips = len(df[~df["is_agent"]])
             avg_length = df["content"].str.len().mean()
 
             # Get most common tags
@@ -245,7 +240,7 @@ class ClipStorage:
             print(f"Stats error: {e}")
             return {"error": str(e)}
 
-    async def get_clip(self, clip_id: str) -> Optional[Dict[str, Any]]:
+    async def get_clip(self, clip_id: str) -> dict[str, Any] | None:
         """Get a specific clip by ID."""
         await self._ensure_initialized()
 

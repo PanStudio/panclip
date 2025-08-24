@@ -1,8 +1,9 @@
 """Simple tests for cache functionality."""
 
-import pytest
 import asyncio
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
+
+import pytest
 
 from smart_clipboard.core.cache import ClipCache, MemoryCache
 

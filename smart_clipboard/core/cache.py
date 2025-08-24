@@ -1,9 +1,9 @@
 """Fast caching layer for immediate responses."""
 
+import asyncio
 import json
 import time
-import asyncio
-from typing import Any, Optional, Dict
+from typing import Any
 
 
 class ClipCache:
@@ -26,7 +26,7 @@ class ClipCache:
             print(f"Redis connection failed: {e}, using in-memory cache")
             self.backend = MemoryCache()
 
-    async def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Any | None:
         """Get value from cache."""
         try:
             return await self.backend.get(key)
@@ -84,7 +84,7 @@ class RedisCache:
             self._connected = False
             return False
 
-    async def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Any | None:
         """Get from Redis cache."""
         if not await self._ensure_connected():
             return None
@@ -133,12 +133,12 @@ class MemoryCache:
     """High-performance in-memory cache with LRU eviction."""
 
     def __init__(self, max_size: int = 10000):
-        self.cache: Dict[str, Dict[str, Any]] = {}
-        self.access_order: Dict[str, float] = {}
+        self.cache: dict[str, dict[str, Any]] = {}
+        self.access_order: dict[str, float] = {}
         self.max_size = max_size
         self._lock = asyncio.Lock()
 
-    async def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Any | None:
         """Get from memory cache."""
         async with self._lock:
             if key in self.cache:
@@ -214,7 +214,7 @@ class MemoryCache:
                 del self.cache[key]
             del self.access_order[key]
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         current_time = time.time()
         expired_count = sum(

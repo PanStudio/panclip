@@ -1,15 +1,16 @@
 """Tests for MCP server functionality."""
 
 import asyncio
-import json
+from unittest.mock import AsyncMock, Mock
+
 import pytest
-from unittest.mock import Mock, patch, AsyncMock
+
+from smart_clipboard.core.cache import ClipCache
+from smart_clipboard.core.intelligence import UniversalIntelligence
+from smart_clipboard.core.storage import ClipStorage
 
 # Import the server components
 from smart_clipboard.mcp_server import SmartClipboardMCPServer as SmartClipboardServer
-from smart_clipboard.core.storage import ClipStorage
-from smart_clipboard.core.intelligence import UniversalIntelligence
-from smart_clipboard.core.cache import ClipCache
 
 
 class TestSmartClipboardServer:
@@ -215,7 +216,7 @@ class TestSmartClipboardServer:
 @pytest.mark.asyncio
 async def test_background_processing():
     """Test background processing doesn't block main thread."""
-    server = SmartClipboardMCPServer()
+    server = SmartClipboardServer()
 
     # Mock all dependencies
     server.cache.get = AsyncMock(
@@ -248,7 +249,7 @@ async def test_background_processing():
 @pytest.mark.asyncio
 async def test_error_handling():
     """Test error handling in various scenarios."""
-    server = SmartClipboardMCPServer()
+    server = SmartClipboardServer()
 
     # Test storage failure
     server.ai.should_store = AsyncMock(return_value=True)

@@ -1,7 +1,8 @@
 """Tests for LiteLLM intelligence layer."""
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import patch, Mock, AsyncMock
 
 from smart_clipboard.core.intelligence import UniversalIntelligence
 
@@ -20,7 +21,7 @@ class TestClipIntelligence:
         mock_response = Mock()
         mock_response.data = [{"embedding": [0.1, 0.2, 0.3]}]
 
-        with patch("core.intelligence.aembedding", return_value=mock_response):
+        with patch("smart_clipboard.core.intelligence.aembedding", return_value=mock_response):
             result = await intelligence.generate_embedding("test content")
 
             assert result == [0.1, 0.2, 0.3]
@@ -28,7 +29,7 @@ class TestClipIntelligence:
     @pytest.mark.asyncio
     async def test_generate_embedding_fallback(self, intelligence):
         """Test embedding fallback when LiteLLM fails."""
-        with patch("core.intelligence.aembedding", side_effect=Exception("API Error")):
+        with patch("smart_clipboard.core.intelligence.aembedding", side_effect=Exception("API Error")):
             result = await intelligence.generate_embedding("test content")
 
             # Should return fallback embedding
@@ -39,8 +40,8 @@ class TestClipIntelligence:
     @pytest.mark.asyncio
     async def test_generate_embedding_without_litellm(self):
         """Test embedding generation when LiteLLM is not available."""
-        with patch("core.intelligence.LITELLM_AVAILABLE", False):
-            intelligence = ClipIntelligence()
+        with patch("smart_clipboard.core.intelligence.LITELLM_AVAILABLE", False):
+            intelligence = UniversalIntelligence()
             result = await intelligence.generate_embedding("test content")
 
             # Should use fallback implementation
@@ -55,7 +56,7 @@ class TestClipIntelligence:
         mock_response.choices[0].message = Mock()
         mock_response.choices[0].message.content = '["python", "web", "tutorial"]'
 
-        with patch("core.intelligence.acompletion", return_value=mock_response):
+        with patch("smart_clipboard.core.intelligence.acompletion", return_value=mock_response):
             result = await intelligence.generate_tags("Python web development tutorial")
 
             assert result == ["python", "web", "tutorial"]
@@ -68,7 +69,7 @@ class TestClipIntelligence:
         mock_response.choices[0].message = Mock()
         mock_response.choices[0].message.content = 'Tags: "python", "web", "tutorial"'
 
-        with patch("core.intelligence.acompletion", return_value=mock_response):
+        with patch("smart_clipboard.core.intelligence.acompletion", return_value=mock_response):
             result = await intelligence.generate_tags("Python web development tutorial")
 
             # Should extract tags from malformed response
@@ -269,7 +270,7 @@ class TestClipIntelligence:
             '["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7"]'
         )
 
-        with patch("core.intelligence.acompletion", return_value=mock_response):
+        with patch("smart_clipboard.core.intelligence.acompletion", return_value=mock_response):
             result = await intelligence.generate_tags("test content")
 
             # Should limit to 5 tags

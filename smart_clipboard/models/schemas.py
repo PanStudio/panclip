@@ -1,8 +1,9 @@
 """Data models for Smart Clipboard MCP Server."""
 
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
 import time
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 
 class Clip(BaseModel):
@@ -10,10 +11,10 @@ class Clip(BaseModel):
 
     id: str
     content: str
-    embedding: Optional[List[float]] = None
-    tags: List[str] = Field(default_factory=list)
+    embedding: list[float] | None = None
+    tags: list[str] = Field(default_factory=list)
     created_at: float = Field(default_factory=time.time)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class SearchResult(BaseModel):
@@ -21,9 +22,9 @@ class SearchResult(BaseModel):
 
     id: str
     content: str
-    tags: List[str]
+    tags: list[str]
     score: float
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ClipResponse(BaseModel):
@@ -31,4 +32,4 @@ class ClipResponse(BaseModel):
 
     id: str
     status: str
-    message: Optional[str] = None
+    message: str | None = None

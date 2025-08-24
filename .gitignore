@@ -70,4 +70,4 @@ temp/
 tmp/
 
 # ChromaDB
-chroma/
+chroma/.smart-clipboard/

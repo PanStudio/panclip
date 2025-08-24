@@ -1,20 +1,20 @@
 """Universal AI Intelligence using LiteLLM Router for any provider."""
 
-import json
-import re
-import os
-import time
-import logging
 import hashlib
-from typing import List, Optional, Dict, Any
+import json
+import logging
+import os
+import re
+from typing import Any
+
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
 try:
-    from litellm import Router, aembedding, acompletion
     import litellm
+    from litellm import Router
 
     LITELLM_AVAILABLE = True
 except ImportError:
@@ -105,7 +105,7 @@ class UniversalIntelligence:
             logger.error(f"Failed to initialize router: {e}")
             self.fallback_mode = True
 
-    def _build_model_list(self) -> List[Dict[str, Any]]:
+    def _build_model_list(self) -> list[dict[str, Any]]:
         """Build model list for LiteLLM Router from detected providers."""
         model_list = []
 
@@ -145,7 +145,7 @@ class UniversalIntelligence:
 
         return model_list
 
-    def _get_litellm_params(self, provider: AIProvider, model: str) -> Dict[str, Any]:
+    def _get_litellm_params(self, provider: AIProvider, model: str) -> dict[str, Any]:
         """Get LiteLLM parameters for a provider and model."""
         params = {}
 
@@ -184,7 +184,7 @@ class UniversalIntelligence:
 
         return params
 
-    def _build_fallbacks(self) -> List[Dict[str, List[str]]]:
+    def _build_fallbacks(self) -> list[dict[str, list[str]]]:
         """Build fallback chains for router."""
         fallbacks = []
 
@@ -228,7 +228,7 @@ class UniversalIntelligence:
             # Disable caching if it fails
             litellm.cache = None
 
-    async def generate_embedding(self, text: str) -> Optional[List[float]]:
+    async def generate_embedding(self, text: str) -> list[float] | None:
         """Generate embedding using best available provider with fallbacks."""
         if self.fallback_mode or not self.router:
             return self._fallback_embedding(text)
@@ -237,10 +237,9 @@ class UniversalIntelligence:
             # Truncate text if too long
             text = text[:8000] if len(text) > 8000 else text
 
-            # Use router for embedding
-            response = await self.router.aembedding(
-                model=self.embedding_model_name, input=text
-            )
+            # Use router for embedding - try the first available model
+            model_name = f"{self.embedding_model_name}-0"
+            response = await self.router.aembedding(model=model_name, input=text)
 
             return response.data[0]["embedding"]
 
@@ -248,7 +247,7 @@ class UniversalIntelligence:
             logger.warning(f"Embedding generation failed, using fallback: {e}")
             return self._fallback_embedding(text)
 
-    async def generate_tags(self, content: str) -> List[str]:
+    async def generate_tags(self, content: str) -> list[str]:
         """Generate tags using best available chat model with fallbacks."""
         if self.fallback_mode or not self.router:
             return self._fallback_tags(content)
@@ -265,8 +264,10 @@ Return only a JSON array of strings, nothing else. Example: ["python", "web deve
 
 Tags:"""
 
+            # Use router for chat - try the first available model
+            model_name = f"{self.chat_model_name}-0"
             response = await self.router.acompletion(
-                model=self.chat_model_name,
+                model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 max_tokens=100,
@@ -372,7 +373,7 @@ Tags:"""
         # Store if it has multiple valuable indicators
         return valuable_score >= 2
 
-    def _fallback_embedding(self, text: str) -> List[float]:
+    def _fallback_embedding(self, text: str) -> list[float]:
         """Hash-based fallback embedding."""
         # Create deterministic embedding from text hash
         hash_obj = hashlib.md5(text.encode())
@@ -387,7 +388,7 @@ Tags:"""
 
         return embedding
 
-    def _fallback_tags(self, content: str) -> List[str]:
+    def _fallback_tags(self, content: str) -> list[str]:
         """Rule-based tag generation fallback."""
         content_lower = content.lower()
         tags = []
@@ -433,7 +434,7 @@ Tags:"""
 
         return list(set(tags))[:5]
 
-    def _extract_tags_from_text(self, text: str) -> List[str]:
+    def _extract_tags_from_text(self, text: str) -> list[str]:
         """Extract tags from malformed LLM response."""
         tags = []
 
@@ -451,7 +452,7 @@ Tags:"""
 
         return tags[:5] if tags else ["untagged"]
 
-    def get_provider_status(self) -> Dict[str, Any]:
+    def get_provider_status(self) -> dict[str, Any]:
         """Get current provider status and configuration."""
         if self.fallback_mode:
             return {
@@ -473,13 +474,14 @@ Tags:"""
                 for p in self.available_providers
             ],
             "best_embedding": (
-                self.best_providers.get("embedding", {}).name
-                if self.best_providers.get("embedding")
+                self.best_providers["embedding"].name
+                if "embedding" in self.best_providers
+                and self.best_providers["embedding"]
                 else None
             ),
             "best_chat": (
-                self.best_providers.get("chat", {}).name
-                if self.best_providers.get("chat")
+                self.best_providers["chat"].name
+                if "chat" in self.best_providers and self.best_providers["chat"]
                 else None
             ),
             "router_configured": self.router is not None,

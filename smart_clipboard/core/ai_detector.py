@@ -1,12 +1,11 @@
 """AI Provider Detection and Configuration Utilities."""
 
-import os
-import json
 import asyncio
-import httpx
-from typing import Dict, List, Tuple, Optional, Any
-from dataclasses import dataclass
 import logging
+import os
+from dataclasses import dataclass
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +17,12 @@ class AIProvider:
     name: str
     type: str  # "local" or "cloud"
     api_base: str
-    api_key: Optional[str] = None
-    models: List[str] = None
-    embedding_models: List[str] = None
-    chat_models: List[str] = None
+    api_key: str | None = None
+    models: list[str] | None = None
+    embedding_models: list[str] | None = None
+    chat_models: list[str] | None = None
     available: bool = False
-    latency_ms: Optional[float] = None
+    latency_ms: float | None = None
 
 
 class AIDetector:
@@ -33,7 +32,7 @@ class AIDetector:
         self.timeout = timeout
         self.detected_providers = []
 
-    async def detect_all_providers(self) -> List[AIProvider]:
+    async def detect_all_providers(self) -> list[AIProvider]:
         """Detect all available AI providers (local and cloud)."""
         providers = []
 
@@ -48,7 +47,7 @@ class AIDetector:
         self.detected_providers = providers
         return providers
 
-    async def _detect_local_providers(self) -> List[AIProvider]:
+    async def _detect_local_providers(self) -> list[AIProvider]:
         """Detect local AI servers."""
         local_providers = []
 
@@ -101,8 +100,8 @@ class AIDetector:
         return local_providers
 
     async def _test_local_provider(
-        self, config: Dict[str, str]
-    ) -> Optional[AIProvider]:
+        self, config: dict[str, str]
+    ) -> AIProvider | None:
         """Test if a local provider is available."""
         try:
             api_base = config["api_base"]
@@ -146,8 +145,8 @@ class AIDetector:
         )
 
     def _parse_models(
-        self, models_data: Dict, provider_name: str
-    ) -> Tuple[List[str], List[str], List[str]]:
+        self, models_data: dict, provider_name: str
+    ) -> tuple[list[str], list[str], list[str]]:
         """Parse model data and categorize models."""
         all_models = []
         embedding_models = []
@@ -183,7 +182,7 @@ class AIDetector:
 
         return all_models, embedding_models, chat_models
 
-    async def _detect_cloud_providers(self) -> List[AIProvider]:
+    async def _detect_cloud_providers(self) -> list[AIProvider]:
         """Detect available cloud providers based on environment variables."""
         cloud_providers = []
 
@@ -261,7 +260,7 @@ class AIDetector:
 
         return cloud_providers
 
-    async def _test_cloud_provider(self, config: Dict, api_key: str) -> AIProvider:
+    async def _test_cloud_provider(self, config: dict, api_key: str) -> AIProvider:
         """Test if a cloud provider is available."""
         try:
             headers = self._get_auth_headers(config["name"], api_key)
@@ -310,7 +309,7 @@ class AIDetector:
             available=False,
         )
 
-    def _get_auth_headers(self, provider: str, api_key: str) -> Dict[str, str]:
+    def _get_auth_headers(self, provider: str, api_key: str) -> dict[str, str]:
         """Get authentication headers for different providers."""
         if provider == "anthropic":
             return {
@@ -326,9 +325,9 @@ class AIDetector:
             # Default OpenAI-compatible
             return {"Authorization": f"Bearer {api_key}"}
 
-    def get_best_providers(self) -> Dict[str, AIProvider]:
+    def get_best_providers(self) -> dict[str, AIProvider | None]:
         """Get the best available providers for different tasks."""
-        best = {
+        best: dict[str, AIProvider | None] = {
             "embedding": None,
             "chat": None,
             "local_embedding": None,
@@ -390,10 +389,10 @@ class AIDetector:
                     f"# Provider: {best['embedding'].name} ({best['embedding'].type})",
                     (
                         f"# Latency: {best['embedding'].latency_ms:.1f}ms"
-                        if best["embedding"].latency_ms
+                        if best["embedding"] and best["embedding"].latency_ms
                         else ""
                     ),
-                    f"# Available models: {', '.join(best['embedding'].embedding_models[:3])}",
+                    f"# Available models: {', '.join(best['embedding'].embedding_models[:3]) if best['embedding'] and best['embedding'].embedding_models else ''}",
                 ]
             )
 
@@ -405,10 +404,10 @@ class AIDetector:
                     f"# Provider: {best['chat'].name} ({best['chat'].type})",
                     (
                         f"# Latency: {best['chat'].latency_ms:.1f}ms"
-                        if best["chat"].latency_ms
+                        if best["chat"] and best["chat"].latency_ms
                         else ""
                     ),
-                    f"# Available models: {', '.join(best['chat'].chat_models[:3])}",
+                    f"# Available models: {', '.join(best['chat'].chat_models[:3]) if best['chat'] and best['chat'].chat_models and len(best['chat'].chat_models) > 0 else ''}",
                 ]
             )
 

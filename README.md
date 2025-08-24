@@ -20,6 +20,7 @@ When working with AI agents like Claude, context is lost between conversations. 
 - **Fast**: <1ms response times with intelligent caching
 - **Works Offline**: Falls back to local embeddings when APIs are unavailable
 - **Universal AI Support**: Auto-detects OpenAI, Anthropic, Ollama, LM Studio, and 100+ providers
+- ✅ Production-ready error handling and logging
 
 ## Installation
 
@@ -75,6 +76,7 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 # Local models (Ollama/LM Studio)
 export OLLAMA_API_BASE="http://localhost:11434"
+export LMSTUDIO_API_BASE="http://192.168.86.20:1234"
 ```
 
 Edit `config.yaml` for advanced settings:

@@ -6,7 +6,25 @@ This file provides guidance to Claude Code when working with the Smart Clipboard
 
 Smart Clipboard gives AI agents persistent memory through intelligent clipboard management. When working with Claude, context is lost between conversations. This server solves that by providing a searchable, persistent memory that agents can write to and read from across sessions.
 
-**Current Status: Production Ready v1.0.0**
+**Current Status: Working with LM Studio Integration**
+
+## Recent Changes & Fixes
+
+### 🔧 Critical Fixes Applied
+
+1. **LiteLLM Router Model Names**: Fixed mismatch between router configuration (`universal-embedding-0`) and code calls (`universal-embedding`)
+2. **LanceDB Schema**: Updated to use 768-dimension embeddings for LM Studio compatibility
+3. **JSON Serialization**: Fixed numpy array serialization issues in storage layer
+4. **Code Quality**: Applied black formatting and resolved ruff linting issues
+5. **Test Infrastructure**: Fixed import paths and async fixture problems
+
+### ✅ Verified Working Features
+
+- MCP Protocol compliance with all 5 tools functional
+- AI integration with LM Studio (embeddings + chat completion)
+- Vector storage with LanceDB operational
+- Semantic search returning relevant results
+- Error handling and JSON serialization robust
 
 ## Quick Start
 
@@ -36,6 +54,13 @@ PYTHONPATH=. uv run pytest
 
 # Run specific test
 PYTHONPATH=. uv run pytest smart_clipboard/tests/test_mcp.py -v
+
+# Test MCP functionality end-to-end
+python3 -c "
+import subprocess, json
+server = subprocess.Popen(['uv', 'run', 'smart-clipboard'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+# Initialize and test tools...
+"
 ```
 
 ### Code Quality
@@ -43,7 +68,7 @@ PYTHONPATH=. uv run pytest smart_clipboard/tests/test_mcp.py -v
 # Format code
 uv run black smart_clipboard/
 
-# Lint code  
+# Lint code
 uv run ruff check .
 
 # Run all checks
@@ -62,8 +87,9 @@ Claude Desktop ──MCP stdio──> Smart Clipboard ──> LanceDB
 
 - **`smart_clipboard/mcp_server.py`** - MCP stdio server implementation
 - **`smart_clipboard/core/storage.py`** - LanceDB vector storage
-- **`smart_clipboard/core/intelligence.py`** - LiteLLM AI integration  
+- **`smart_clipboard/core/intelligence.py`** - LiteLLM AI integration
 - **`smart_clipboard/core/cache.py`** - High-performance caching
+- **`smart_clipboard/core/ai_detector.py`** - AI provider auto-detection
 - **`smart_clipboard/models/schemas.py`** - Pydantic data models
 
 ### MCP Tools
@@ -73,67 +99,6 @@ Claude Desktop ──MCP stdio──> Smart Clipboard ──> LanceDB
 3. **`clip_list`** - List recent clips
 4. **`clip_remove`** - Delete clips by ID
 5. **`clip_stats`** - Usage statistics
-
-## Performance Characteristics
-
-- **Response Time**: <1ms for cached operations
-- **Search Latency**: <20ms for semantic search
-- **Memory Usage**: <50MB for 10k clips
-- **Startup Time**: <2 seconds
-
-## Project Structure
-
-```
-smart-clipboard-mcp/
-├── smart_clipboard/
-│   ├── __init__.py
-│   ├── mcp_server.py       # Main MCP server
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── storage.py      # LanceDB operations
-│   │   ├── intelligence.py # LiteLLM integration
-│   │   └── cache.py        # Caching layer
-│   ├── models/
-│   │   ├── __init__.py
-│   │   └── schemas.py      # Data models
-│   └── tests/
-│       ├── test_mcp.py
-│       ├── test_storage.py
-│       ├── test_intelligence.py
-│       └── test_cache.py
-├── config.yaml             # Configuration
-├── pyproject.toml          # Package config
-├── README.md               # User documentation
-├── CLAUDE.md               # This file
-└── LICENSE                 # MIT License
-```
-
-## Configuration
-
-### Environment Variables (Optional)
-```bash
-# OpenAI (recommended)
-export OPENAI_API_KEY="sk-..."
-
-# Anthropic  
-export ANTHROPIC_API_KEY="sk-ant-..."
-
-# Local models
-export OLLAMA_API_BASE="http://localhost:11434"
-```
-
-### config.yaml
-```yaml
-intelligence:
-  embedding_model: "text-embedding-3-small"
-  tagging_model: "gpt-3.5-turbo"
-  
-storage:
-  path: "~/.smart-clipboard/lancedb"
-  
-cache:
-  backend: "memory"  # or "redis"
-```
 
 ## Design Principles
 
@@ -152,7 +117,7 @@ PYTHONPATH=. uv run pytest
 # With coverage
 PYTHONPATH=. uv run pytest --cov=smart_clipboard --cov-report=html
 
-# Performance test
+# Specific test
 PYTHONPATH=. uv run pytest smart_clipboard/tests/test_mcp.py::TestSmartClipboardServer::test_add_clip_fast_response -v
 ```
 

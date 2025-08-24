@@ -1,10 +1,10 @@
 """Tests for LanceDB storage backend."""
 
-import pytest
-import tempfile
 import shutil
-import os
-from unittest.mock import patch, Mock
+import tempfile
+from unittest.mock import Mock, patch
+
+import pytest
 
 from smart_clipboard.core.storage import ClipStorage
 
