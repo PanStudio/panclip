@@ -135,3 +135,4 @@ PYTHONPATH=. uv run pytest smart_clipboard/tests/test_mcp.py::TestSmartClipboard
 - The server handles all AI operations in the background
 - Falls back to local processing when APIs are unavailable
 - Optimized for storing code, configurations, and technical content
+- never never add AI coders or agents in my git commit messages!!!
