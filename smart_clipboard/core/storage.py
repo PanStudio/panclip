@@ -50,6 +50,11 @@ class ClipStorage:
                 ])
 
                 self.table = self.db.create_table("clips", schema=schema)
+                # Remove LanceDB "getting started" entry if it exists
+                try:
+                    self.table.delete("id = 'init'")
+                except Exception:
+                    pass # Ignore if it doesn't exist
             else:
                 self.table = self.db.open_table("clips")
 
@@ -78,7 +83,7 @@ class ClipStorage:
                 "content": content,
                 "embedding": embedding,
                 "tags": tags,
-                "timestamp": time.time(),
+                "timestamp": metadata.get("timestamp", time.time()),
                 "source": metadata.get("source", "unknown"),
                 "is_agent": metadata.get("is_agent", False),
             }

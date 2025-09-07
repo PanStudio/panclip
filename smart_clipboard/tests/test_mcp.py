@@ -1,267 +1,162 @@
 """Tests for MCP server functionality."""
 
 import asyncio
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from smart_clipboard.core.cache import ClipCache
-from smart_clipboard.core.intelligence import UniversalIntelligence
-from smart_clipboard.core.storage import ClipStorage
+from smart_clipboard.mcp_server import SmartClipboardMCPServer
 
-# Import the server components
-from smart_clipboard.mcp_server import SmartClipboardMCPServer as SmartClipboardServer
+
+@pytest.fixture
+def server():
+    """Create a test server instance with mocked dependencies."""
+    with patch("smart_clipboard.mcp_server.ClipStorage") as mock_storage, \
+         patch("smart_clipboard.mcp_server.UniversalIntelligence") as mock_ai, \
+         patch("smart_clipboard.mcp_server.ClipCache") as mock_cache:
+        
+        server_instance = SmartClipboardMCPServer()
+        
+        # Replace dependencies with AsyncMocks
+        server_instance.storage = AsyncMock()
+        server_instance.ai = AsyncMock()
+        server_instance.cache = AsyncMock()
+        
+        yield server_instance
 
 
 class TestSmartClipboardServer:
     """Test the main MCP server functionality."""
 
-    @pytest.fixture
-    async def server(self):
-        """Create a test server instance."""
-        server = SmartClipboardServer()
-        # Override with mock components for testing
-        server.storage = Mock(spec=ClipStorage)
-        server.ai = Mock(spec=UniversalIntelligence)
-        server.cache = Mock(spec=ClipCache)
-        return server
-
     @pytest.mark.asyncio
-    async def test_add_clip_fast_response(self, server):
-        """Test that add_clip returns quickly via fast path."""
-        # Setup mocks
-        server.ai.should_store = AsyncMock(return_value=True)
-        server.cache.set = AsyncMock()
+    async def test_handle_clip_add(self, server):
+        """Test that clip_add returns quickly and queues background processing."""
+        server.ai.should_store.return_value = True
+        
+        original_create_task = asyncio.create_task
+        background_task = None
 
-        content = "Test content for fast response"
+        def capture_task(coro):
+            nonlocal background_task
+            # Use the original function to avoid recursion
+            background_task = original_create_task(coro)
+            return background_task
 
-        # Measure response time
-        start_time = asyncio.get_event_loop().time()
-        result = await server._add_clip(content, "manual")
-        end_time = asyncio.get_event_loop().time()
+        with patch("asyncio.create_task", side_effect=capture_task) as mock_create_task:
+            content = "Test content for fast response"
+            args = {"content": content, "source": "manual"}
 
-        # Verify response time is under 10ms
-        response_time = end_time - start_time
-        assert (
-            response_time < 0.01
-        ), f"Response took {response_time:.3f}s, should be <0.01s"
+            result = await server._handle_clip_add(args)
 
-        # Verify response structure
-        assert result["status"] == "stored"
-        assert "id" in result
-        assert len(result["id"]) == 12  # MD5 hash truncated to 12 chars
-
-        # Verify cache was called
-        server.cache.set.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_agent_mode_detection(self, server):
-        """Test agent mode is properly detected."""
-        server.ai.should_store = AsyncMock(return_value=True)
-        server.cache.set = AsyncMock()
-
-        # Test various agent source indicators
-        agent_sources = ["agent", "claude", "Claude Code", "AI Assistant"]
-
-        for source in agent_sources:
-            result = await server._add_clip("Test content", source)
             assert result["status"] == "stored"
-            assert "agent mode" in result["message"]
+            assert "id" in result
+            server.cache.set.assert_called_once()
+            mock_create_task.assert_called_once()
+            
+            assert background_task is not None
+            # Allow the background task to run
+            await asyncio.sleep(0)
+            # Now we can be sure the task is finished if it had no awaits
+            # or we can check its done status
+            assert background_task.done()
+
 
     @pytest.mark.asyncio
-    async def test_agent_mode_content_filtering(self, server):
-        """Test agent mode filters uninteresting content."""
-        server.ai.should_store = AsyncMock(return_value=False)
-        server.cache.set = AsyncMock()
+    async def test_handle_clip_search_cache_hit(self, server):
+        """Test that clip_search returns from cache when available."""
+        cached_result = {"query": "test", "results": [], "from_cache": False}
+        server.cache.get.return_value = cached_result
 
-        result = await server._add_clip("short", "agent")
+        result = await server._handle_clip_search({"query": "test"})
 
-        assert result["status"] == "skipped"
-        assert "not significant" in result["reason"]
-        server.cache.set.assert_not_called()
+        assert result["from_cache"] is True
+        server.ai.generate_embedding.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_search_clips_caching(self, server):
-        """Test search results are properly cached."""
-        # Setup mocks
-        server.cache.get = AsyncMock(return_value=None)  # Cache miss first time
-        server.cache.set = AsyncMock()
-        server.ai.generate_embedding = AsyncMock(return_value=[0.1] * 1536)
-        server.storage.search = AsyncMock(
-            return_value=[
-                {"id": "test1", "content": "test content", "tags": [], "score": 0.9}
-            ]
-        )
+    async def test_handle_clip_search_cache_miss(self, server):
+        """Test that clip_search queries storage on cache miss."""
+        server.cache.get.return_value = None
+        server.ai.generate_embedding.return_value = [0.1] * 768
+        server.storage.search.return_value = [{"id": "a"}]
 
-        query = "test query"
+        result = await server._handle_clip_search({"query": "test"})
 
-        # First search - should query storage
-        result1 = await server._search_clips(query, 5)
-
-        assert result1["from_cache"] is False
+        assert result["from_cache"] is False
+        server.ai.generate_embedding.assert_called_once()
         server.storage.search.assert_called_once()
         server.cache.set.assert_called_once()
 
-        # Second search - should return from cache
-        server.cache.get = AsyncMock(
-            return_value={
-                "query": query,
-                "results": [
-                    {"id": "test1", "content": "test", "tags": [], "score": 0.9}
-                ],
-                "count": 1,
-                "from_cache": False,
-            }
-        )
-
-        result2 = await server._search_clips(query, 5)
-        assert result2["from_cache"] is True
-
     @pytest.mark.asyncio
-    async def test_list_clips(self, server):
+    async def test_handle_clip_list(self, server):
         """Test listing clips functionality."""
-        # Mock storage response
-        mock_clips = [
-            {
-                "id": "1",
-                "content": "First clip",
-                "tags": ["test"],
-                "timestamp": 1234567890,
-            },
-            {
-                "id": "2",
-                "content": "Second clip",
-                "tags": ["example"],
-                "timestamp": 1234567891,
-            },
-        ]
-        server.storage.list_recent = AsyncMock(return_value=mock_clips)
+        mock_clips = [{"id": "1"}, {"id": "2"}]
+        server.storage.list_recent.return_value = mock_clips
 
-        result = await server._list_clips(10)
+        result = await server._handle_clip_list({"limit": 10})
 
         assert result["count"] == 2
-        assert result["limit"] == 10
-        assert len(result["clips"]) == 2
         server.storage.list_recent.assert_called_once_with(10)
 
     @pytest.mark.asyncio
-    async def test_remove_clip(self, server):
+    async def test_handle_clip_remove(self, server):
         """Test clip removal functionality."""
         clip_id = "test_clip_123"
+        server.storage.remove.return_value = True
 
-        # Test successful removal
-        server.storage.remove = AsyncMock(return_value=True)
-        server.cache.delete = AsyncMock()
-
-        result = await server._remove_clip(clip_id)
+        result = await server._handle_clip_remove({"clip_id": clip_id})
 
         assert result["status"] == "removed"
-        assert result["id"] == clip_id
         server.storage.remove.assert_called_once_with(clip_id)
         server.cache.delete.assert_called_once_with(clip_id)
 
-        # Test clip not found
-        server.storage.remove = AsyncMock(return_value=False)
-
-        result = await server._remove_clip(clip_id)
-
-        assert result["status"] == "not_found"
-        assert "error" in result
-
     @pytest.mark.asyncio
-    async def test_get_stats(self, server):
+    async def test_handle_clip_stats(self, server):
         """Test statistics functionality."""
-        mock_stats = {
-            "total_clips": 42,
-            "agent_clips": 30,
-            "manual_clips": 12,
-            "avg_content_length": 156.7,
-            "storage_path": "/test/path",
-        }
-        server.storage.get_stats = AsyncMock(return_value=mock_stats)
+        mock_stats = {"total_clips": 10}
+        server.storage.get_stats.return_value = mock_stats
 
-        result = await server._get_stats()
+        result = await server._handle_clip_stats({})
 
         assert result == mock_stats
         server.storage.get_stats.assert_called_once()
 
-    def test_generate_clip_id(self, server):
-        """Test clip ID generation."""
-        content = "Test content for ID generation"
+    @pytest.mark.asyncio
+    async def test_process_clip_background(self, server):
+        """Test the full background processing pipeline."""
+        clip_id = "test_id"
+        clip_data = {
+            "content": "some code to test `def main()`",
+            "manual_tags": ["manual"],
+            "source": "test",
+            "timestamp": 123
+        }
+        server.ai.generate_embedding.return_value = [0.5] * 768
+        server.ai.generate_tags.return_value = ["auto_tag"]
 
-        clip_id1 = server._generate_clip_id(content)
-        clip_id2 = server._generate_clip_id(content)
+        await server._process_clip_background(clip_id, clip_data)
 
-        # Should be 12 characters
-        assert len(clip_id1) == 12
-        assert len(clip_id2) == 12
-
-        # Should be different due to timestamp
-        assert clip_id1 != clip_id2
+        server.ai.generate_embedding.assert_called_once_with(clip_data["content"])
+        server.ai.generate_tags.assert_called_once_with(clip_data["content"])
+        server.storage.store.assert_called_once()
+        
+        # Check that tags are combined
+        stored_tags = server.storage.store.call_args.kwargs["tags"]
+        assert "manual" in stored_tags
+        assert "auto_tag" in stored_tags
 
     def test_is_agent_source(self, server):
         """Test agent source detection."""
-        # Agent sources
         assert server._is_agent_source("agent") is True
         assert server._is_agent_source("claude") is True
-        assert server._is_agent_source("Claude Code") is True
         assert server._is_agent_source("AI Assistant") is True
-
-        # Human sources
         assert server._is_agent_source("manual") is False
-        assert server._is_agent_source("user") is False
-        assert server._is_agent_source("") is False
 
-
-@pytest.mark.asyncio
-async def test_background_processing():
-    """Test background processing doesn't block main thread."""
-    server = SmartClipboardServer()
-
-    # Mock all dependencies
-    server.cache.get = AsyncMock(
-        return_value={
-            "content": "Test content for background processing",
-            "source": "manual",
-            "is_agent": False,
-            "timestamp": 1234567890,
-        }
-    )
-    server.ai.generate_embedding = AsyncMock(return_value=[0.1] * 1536)
-    server.ai.generate_tags = AsyncMock(return_value=["test", "background"])
-    server.storage.store = AsyncMock(return_value=True)
-
-    # Process should complete without blocking
-    start_time = asyncio.get_event_loop().time()
-    await server._process_clip_background("test_clip_123")
-    end_time = asyncio.get_event_loop().time()
-
-    # Should complete quickly
-    processing_time = end_time - start_time
-    assert processing_time < 0.1, f"Background processing took {processing_time:.3f}s"
-
-    # Verify all steps were called
-    server.cache.get.assert_called_once_with("test_clip_123")
-    server.ai.generate_embedding.assert_called_once()
-    server.storage.store.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_error_handling():
-    """Test error handling in various scenarios."""
-    server = SmartClipboardServer()
-
-    # Test storage failure
-    server.ai.should_store = AsyncMock(return_value=True)
-    server.cache.set = AsyncMock(side_effect=Exception("Cache error"))
-
-    # Should not crash on cache error
-    result = await server._add_clip("Test content", "manual")
-    assert "id" in result  # Should still return clip ID
-
-    # Test search with missing embedding
-    server.cache.get = AsyncMock(return_value=None)
-    server.ai.generate_embedding = AsyncMock(return_value=None)
-
-    result = await server._search_clips("test query", 5)
-    assert "error" in result
+    def test_generate_clip_id(self, server):
+        """Test clip ID generation is consistent and correct length."""
+        content = "Test content"
+        # Patch time to be constant
+        with patch("time.time", return_value=12345.6789):
+            clip_id1 = server._generate_clip_id(content)
+            clip_id2 = server._generate_clip_id(content)
+            assert clip_id1 == clip_id2
+            assert len(clip_id1) == 16

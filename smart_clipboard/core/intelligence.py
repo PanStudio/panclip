@@ -87,7 +87,6 @@ class UniversalIntelligence:
             # Initialize router with detected providers
             self.router = Router(
                 model_list=model_list,
-                fallbacks=self._build_fallbacks(),
                 routing_strategy=os.getenv("ROUTING_STRATEGY", "latency-based-routing"),
                 num_retries=int(os.getenv("MAX_RETRIES", "3")),
                 timeout=float(os.getenv("REQUEST_TIMEOUT", "30")),
@@ -116,12 +115,12 @@ class UniversalIntelligence:
         if self.best_providers.get("cloud_embedding"):
             embedding_providers.append(self.best_providers["cloud_embedding"])
 
-        for i, provider in enumerate(embedding_providers):
+        for provider in embedding_providers:
             if provider.embedding_models:
                 # Use the first available embedding model
                 model = provider.embedding_models[0]
                 model_config = {
-                    "model_name": f"{self.embedding_model_name}-{i}",
+                    "model_name": self.embedding_model_name,
                     "litellm_params": self._get_litellm_params(provider, model),
                 }
                 model_list.append(model_config)
@@ -133,12 +132,12 @@ class UniversalIntelligence:
         if self.best_providers.get("cloud_chat"):
             chat_providers.append(self.best_providers["cloud_chat"])
 
-        for i, provider in enumerate(chat_providers):
+        for provider in chat_providers:
             if provider.chat_models:
                 # Use the first available chat model
                 model = provider.chat_models[0]
                 model_config = {
-                    "model_name": f"{self.chat_model_name}-{i}",
+                    "model_name": self.chat_model_name,
                     "litellm_params": self._get_litellm_params(provider, model),
                 }
                 model_list.append(model_config)
@@ -184,35 +183,7 @@ class UniversalIntelligence:
 
         return params
 
-    def _build_fallbacks(self) -> list[dict[str, list[str]]]:
-        """Build fallback chains for router."""
-        fallbacks = []
-
-        # Embedding fallbacks: local -> cloud -> offline
-        embedding_fallback_chain = []
-        if self.best_providers.get("local_embedding"):
-            embedding_fallback_chain.append(f"{self.embedding_model_name}-0")
-        if self.best_providers.get("cloud_embedding"):
-            idx = 1 if self.best_providers.get("local_embedding") else 0
-            embedding_fallback_chain.append(f"{self.embedding_model_name}-{idx}")
-
-        if len(embedding_fallback_chain) > 1:
-            fallbacks.append(
-                {embedding_fallback_chain[0]: embedding_fallback_chain[1:]}
-            )
-
-        # Chat fallbacks: local -> cloud
-        chat_fallback_chain = []
-        if self.best_providers.get("local_chat"):
-            chat_fallback_chain.append(f"{self.chat_model_name}-0")
-        if self.best_providers.get("cloud_chat"):
-            idx = 1 if self.best_providers.get("local_chat") else 0
-            chat_fallback_chain.append(f"{self.chat_model_name}-{idx}")
-
-        if len(chat_fallback_chain) > 1:
-            fallbacks.append({chat_fallback_chain[0]: chat_fallback_chain[1:]})
-
-        return fallbacks
+    
 
     def _setup_caching(self):
         """Setup caching for LiteLLM - disk only, no Redis."""
@@ -238,8 +209,9 @@ class UniversalIntelligence:
             text = text[:8000] if len(text) > 8000 else text
 
             # Use router for embedding - try the first available model
-            model_name = f"{self.embedding_model_name}-0"
-            response = await self.router.aembedding(model=model_name, input=text)
+            response = await self.router.aembedding(
+                model=self.embedding_model_name, input=text
+            )
 
             return response.data[0]["embedding"]
 
@@ -265,9 +237,8 @@ Return only a JSON array of strings, nothing else. Example: ["python", "web deve
 Tags:"""
 
             # Use router for chat - try the first available model
-            model_name = f"{self.chat_model_name}-0"
             response = await self.router.acompletion(
-                model=model_name,
+                model=self.chat_model_name,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 max_tokens=100,
@@ -370,8 +341,8 @@ Tags:"""
             1 for pattern in valuable_patterns if pattern in content_lower
         )
 
-        # Store if it has multiple valuable indicators
-        return valuable_score >= 2
+        # Store if it has at least one valuable indicator
+        return valuable_score >= 1
 
     def _fallback_embedding(self, text: str) -> list[float]:
         """Hash-based fallback embedding."""
@@ -379,9 +350,9 @@ Tags:"""
         hash_obj = hashlib.md5(text.encode())
         hash_bytes = hash_obj.digest()
 
-        # Extend to 1536 dimensions (OpenAI compatibility)
+        # Extend to 768 dimensions (LM Studio compatibility)
         embedding = []
-        for i in range(1536):
+        for i in range(768):
             byte_val = hash_bytes[i % len(hash_bytes)]
             # Normalize to [-1, 1] range
             embedding.append((byte_val - 128) / 128.0)
@@ -410,7 +381,7 @@ Tags:"""
 
         # Technologies
         tech_patterns = {
-            "docker": ["docker", "dockerfile", "container"],
+            "docker": ["docker", "dockerfile", "container", "docker-compose"],
             "kubernetes": ["kubernetes", "kubectl", "k8s"],
             "git": ["git ", "github", "gitlab", "commit"],
             "database": ["sql", "mysql", "postgresql", "mongodb"],
