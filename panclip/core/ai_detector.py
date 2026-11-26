@@ -94,9 +94,7 @@ class AIDetector:
 
         return local_providers
 
-    async def _test_local_provider(
-        self, config: dict[str, str]
-    ) -> AIProvider | None:
+    async def _test_local_provider(self, config: dict[str, str]) -> AIProvider | None:
         """Test if a local provider is available."""
         try:
             api_base = config["api_base"]

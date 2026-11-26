@@ -9,6 +9,8 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from .ai_detector import AIDetector, AIProvider
+
 # Load environment variables
 load_dotenv()
 
@@ -20,8 +22,6 @@ try:
 except ImportError:
     Router = None
     LITELLM_AVAILABLE = False
-
-from .ai_detector import AIDetector, AIProvider
 
 logger = logging.getLogger(__name__)
 
@@ -184,8 +184,6 @@ class UniversalIntelligence:
                 params["api_key"] = provider.api_key
 
         return params
-
-    
 
     def _setup_caching(self):
         """Setup caching for LiteLLM - disk only, no Redis."""

@@ -16,8 +16,6 @@ class ClipCache:
     def _initialize_backend(self):
         """Initialize cache backend with Redis fallback to memory."""
         try:
-            import redis.asyncio as redis
-
             self.backend = RedisCache()
         except ImportError:
             print("Redis not available, using in-memory cache")

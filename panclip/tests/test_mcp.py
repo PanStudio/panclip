@@ -1,7 +1,7 @@
 """Tests for MCP server functionality."""
 
 import asyncio
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -11,17 +11,19 @@ from panclip.mcp_server import PanClipMCPServer
 @pytest.fixture
 def server():
     """Create a test server instance with mocked dependencies."""
-    with patch("panclip.mcp_server.ClipStorage") as mock_storage, \
-         patch("panclip.mcp_server.UniversalIntelligence") as mock_ai, \
-         patch("panclip.mcp_server.ClipCache") as mock_cache:
-        
+    with (
+        patch("panclip.mcp_server.ClipStorage"),
+        patch("panclip.mcp_server.UniversalIntelligence"),
+        patch("panclip.mcp_server.ClipCache"),
+    ):
+
         server_instance = PanClipMCPServer()
-        
+
         # Replace dependencies with AsyncMocks
         server_instance.storage = AsyncMock()
         server_instance.ai = AsyncMock()
         server_instance.cache = AsyncMock()
-        
+
         yield server_instance
 
 
@@ -32,7 +34,7 @@ class TestPanClipServer:
     async def test_handle_clip_add(self, server):
         """Test that clip_add returns quickly and queues background processing."""
         server.ai.should_store.return_value = True
-        
+
         original_create_task = asyncio.create_task
         background_task = None
 
@@ -52,14 +54,13 @@ class TestPanClipServer:
             assert "id" in result
             server.cache.set.assert_called_once()
             mock_create_task.assert_called_once()
-            
+
             assert background_task is not None
             # Allow the background task to run
             await asyncio.sleep(0)
             # Now we can be sure the task is finished if it had no awaits
             # or we can check its done status
             assert background_task.done()
-
 
     @pytest.mark.asyncio
     async def test_handle_clip_search_cache_hit(self, server):
@@ -128,7 +129,7 @@ class TestPanClipServer:
             "content": "some code to test `def main()`",
             "manual_tags": ["manual"],
             "source": "test",
-            "timestamp": 123
+            "timestamp": 123,
         }
         server.ai.generate_embedding.return_value = [0.5] * 768
         server.ai.generate_tags.return_value = ["auto_tag"]
@@ -138,7 +139,7 @@ class TestPanClipServer:
         server.ai.generate_embedding.assert_called_once_with(clip_data["content"])
         server.ai.generate_tags.assert_called_once_with(clip_data["content"])
         server.storage.store.assert_called_once()
-        
+
         # Check that tags are combined
         stored_tags = server.storage.store.call_args.kwargs["tags"]
         assert "manual" in stored_tags
