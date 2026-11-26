@@ -1,19 +1,19 @@
-# Smart Clipboard Configuration
+# PanClip Configuration
 server:
-  name: "smart-clipboard"
+  name: "panclip"
   version: "1.0.0"
 
 storage:
   backend: "lancedb"
-  path: "~/.smart-clipboard/lancedb"
+  path: "~/.panclip/lancedb"
   
 cache:
   backend: "redis"  # or "memory"
   ttl: 3600
   
 intelligence:
-  embedding_model: "${EMBEDDING_MODEL:-text-embedding-3-small}"
-  tagging_model: "${TAGGING_MODEL:-gpt-3.5-turbo}"
+  embedding_model: "${PANCLIP_EMBEDDING_MODEL:-text-embedding-3-small}"
+  tagging_model: "${PANCLIP_TAGGING_MODEL:-gpt-3.5-turbo}"
   cache_embeddings: true
   
 agent_mode:

@@ -5,17 +5,17 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from smart_clipboard.mcp_server import SmartClipboardMCPServer
+from panclip.mcp_server import PanClipMCPServer
 
 
 @pytest.fixture
 def server():
     """Create a test server instance with mocked dependencies."""
-    with patch("smart_clipboard.mcp_server.ClipStorage") as mock_storage, \
-         patch("smart_clipboard.mcp_server.UniversalIntelligence") as mock_ai, \
-         patch("smart_clipboard.mcp_server.ClipCache") as mock_cache:
+    with patch("panclip.mcp_server.ClipStorage") as mock_storage, \
+         patch("panclip.mcp_server.UniversalIntelligence") as mock_ai, \
+         patch("panclip.mcp_server.ClipCache") as mock_cache:
         
-        server_instance = SmartClipboardMCPServer()
+        server_instance = PanClipMCPServer()
         
         # Replace dependencies with AsyncMocks
         server_instance.storage = AsyncMock()
@@ -25,7 +25,7 @@ def server():
         yield server_instance
 
 
-class TestSmartClipboardServer:
+class TestPanClipServer:
     """Test the main MCP server functionality."""
 
     @pytest.mark.asyncio

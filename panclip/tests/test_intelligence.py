@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from smart_clipboard.core.ai_detector import AIProvider
-from smart_clipboard.core.intelligence import UniversalIntelligence
+from panclip.core.ai_detector import AIProvider
+from panclip.core.intelligence import UniversalIntelligence
 
 
 @pytest.fixture
@@ -24,8 +24,8 @@ def mock_provider():
 @pytest.fixture
 def intelligence(mock_provider):
     """Fixture to create a UniversalIntelligence instance with a mocked detector and router."""
-    with patch("smart_clipboard.core.intelligence.AIDetector") as mock_ai_detector, \
-         patch("smart_clipboard.core.intelligence.Router") as mock_router:
+    with patch("panclip.core.intelligence.AIDetector") as mock_ai_detector, \
+         patch("panclip.core.intelligence.Router") as mock_router:
 
         # Configure the mock AI detector
         mock_detector_instance = mock_ai_detector.return_value
@@ -76,7 +76,7 @@ class TestClipIntelligence:
     @pytest.mark.asyncio
     async def test_generate_embedding_without_litellm(self):
         """Test embedding generation when LiteLLM is not available."""
-        with patch("smart_clipboard.core.intelligence.LITELLM_AVAILABLE", False):
+        with patch("panclip.core.intelligence.LITELLM_AVAILABLE", False):
             intel = UniversalIntelligence()
             result = await intel.generate_embedding("test content that is long enough")
 

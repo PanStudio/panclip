@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from smart_clipboard.core.cache import ClipCache, MemoryCache
+from panclip.core.cache import ClipCache, MemoryCache
 
 
 class TestMemoryCache:

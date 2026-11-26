@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from smart_clipboard.core.storage import ClipStorage
+from panclip.core.storage import ClipStorage
 
 
 @pytest.fixture

@@ -87,10 +87,12 @@ class UniversalIntelligence:
             # Initialize router with detected providers
             self.router = Router(
                 model_list=model_list,
-                routing_strategy=os.getenv("ROUTING_STRATEGY", "latency-based-routing"),
-                num_retries=int(os.getenv("MAX_RETRIES", "3")),
-                timeout=float(os.getenv("REQUEST_TIMEOUT", "30")),
-                cooldown_time=float(os.getenv("COOLDOWN_TIME", "60")),
+                routing_strategy=os.getenv(
+                    "PANCLIP_ROUTING_STRATEGY", "latency-based-routing"
+                ),
+                num_retries=int(os.getenv("PANCLIP_MAX_RETRIES", "3")),
+                timeout=float(os.getenv("PANCLIP_REQUEST_TIMEOUT", "30")),
+                cooldown_time=float(os.getenv("PANCLIP_COOLDOWN_TIME", "60")),
             )
 
             # Set up caching
@@ -190,7 +192,7 @@ class UniversalIntelligence:
         try:
             # Use disk-based cache only - no Redis dependency
             litellm.cache = litellm.Cache(
-                type="disk", ttl=int(os.getenv("EMBEDDING_CACHE_TTL", "3600"))
+                type="disk", ttl=int(os.getenv("PANCLIP_EMBEDDING_CACHE_TTL", "3600"))
             )
             logger.debug("LiteLLM disk cache configured")
 
@@ -262,11 +264,11 @@ Tags:"""
     async def should_store(self, content: str) -> bool:
         """Determine if content is worth storing (for agent mode)."""
         # Get environment-based configuration
-        if not os.getenv("AGENT_AUTO_CAPTURE", "true").lower() == "true":
+        if not os.getenv("PANCLIP_AGENT_AUTO_CAPTURE", "true").lower() == "true":
             return True  # Store everything if auto-capture is disabled
 
-        min_length = int(os.getenv("AGENT_MIN_CONTENT_LENGTH", "50"))
-        max_length = int(os.getenv("AGENT_MAX_CONTENT_LENGTH", "10000"))
+        min_length = int(os.getenv("PANCLIP_AGENT_MIN_CONTENT_LENGTH", "50"))
+        max_length = int(os.getenv("PANCLIP_AGENT_MAX_CONTENT_LENGTH", "10000"))
 
         # Length checks
         if len(content) < min_length or len(content) > max_length:
@@ -291,7 +293,7 @@ Tags:"""
         # Value indicators based on environment config
         valuable_patterns = []
 
-        if os.getenv("AGENT_FILTER_CODE", "true").lower() == "true":
+        if os.getenv("PANCLIP_AGENT_FILTER_CODE", "true").lower() == "true":
             valuable_patterns.extend(
                 [
                     "def ",
@@ -307,7 +309,7 @@ Tags:"""
                 ]
             )
 
-        if os.getenv("AGENT_FILTER_DOCS", "true").lower() == "true":
+        if os.getenv("PANCLIP_AGENT_FILTER_DOCS", "true").lower() == "true":
             valuable_patterns.extend(
                 [
                     "how to",
@@ -323,7 +325,7 @@ Tags:"""
                 ]
             )
 
-        if os.getenv("AGENT_FILTER_CONFIGS", "true").lower() == "true":
+        if os.getenv("PANCLIP_AGENT_FILTER_CONFIGS", "true").lower() == "true":
             valuable_patterns.extend(
                 [
                     "api",

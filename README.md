@@ -1,4 +1,4 @@
-# Smart Clipboard MCP Server
+# PanClip MCP Server
 
 Give AI agents persistent memory with intelligent clipboard management.
 
@@ -6,9 +6,9 @@ Give AI agents persistent memory with intelligent clipboard management.
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--06--18-orange.svg)](https://modelcontextprotocol.io)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-## Why Smart Clipboard?
+## Why PanClip?
 
-When working with AI agents like Claude, context is lost between conversations. Code snippets, configurations, and solutions disappear. Smart Clipboard solves this by giving agents a persistent, searchable memory they can write to and read from across sessions.
+When working with AI agents like Claude, context is lost between conversations. Code snippets, configurations, and solutions disappear. PanClip solves this by giving agents a persistent, searchable memory they can write to and read from across sessions.
 
 **Built for developers who use AI agents to code.**
 
@@ -28,12 +28,12 @@ When working with AI agents like Claude, context is lost between conversations. 
 
 ```bash
 # Install from GitHub
-claude mcp add smart-clipboard --uvx https://github.com/PanStudio/panclip.git
+claude mcp add panclip -- uvx --from git+https://github.com/PanStudio/panclip.git panclip
 
 # Or clone and run locally
 git clone https://github.com/PanStudio/panclip.git
 cd panclip
-claude mcp add smart-clipboard stdio "uv --directory $(pwd) run smart-clipboard"
+claude mcp add panclip -- uv --directory "$(pwd)" run panclip
 ```
 
 ### For Development
@@ -42,7 +42,7 @@ claude mcp add smart-clipboard stdio "uv --directory $(pwd) run smart-clipboard"
 git clone https://github.com/PanStudio/panclip.git
 cd panclip
 uv sync
-uv run smart-clipboard
+uv run panclip
 ```
 
 ## Usage
@@ -87,7 +87,7 @@ intelligence:
   tagging_model: "gpt-3.5-turbo"
 
 storage:
-  path: "~/.smart-clipboard/lancedb"
+  path: "~/.panclip/lancedb"
 
 cache:
   backend: "memory"  # or "redis" if available
@@ -96,7 +96,7 @@ cache:
 ## Architecture
 
 ```
-Claude Desktop ──MCP──> Smart Clipboard ──> LanceDB (vectors)
+Claude Desktop ──MCP──> PanClip ──> LanceDB (vectors)
                               │
                               └──> LiteLLM ──> AI Provider
 ```
@@ -120,7 +120,7 @@ Claude Desktop ──MCP──> Smart Clipboard ──> LanceDB (vectors)
 PYTHONPATH=. uv run pytest
 
 # Format code
-uv run black smart_clipboard/
+uv run black panclip/
 
 # Lint
 uv run ruff check .

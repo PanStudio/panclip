@@ -1,5 +1,5 @@
 [project]
-name = "smart-clipboard"
+name = "panclip"
 version = "1.0.0"
 description = "AI-powered clipboard management MCP server for Claude Code"
 readme = "README.md"
@@ -37,7 +37,7 @@ dependencies = [
 ]
 
 [project.scripts]
-smart-clipboard = "smart_clipboard.mcp_server:main"
+panclip = "panclip.mcp_server:main"
 
 [project.urls]
 Homepage = "https://github.com/PanStudio/panclip"
@@ -49,7 +49,7 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["smart_clipboard"]
+packages = ["panclip"]
 
 [tool.uv]
 package = true

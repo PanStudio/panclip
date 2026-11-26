@@ -12,7 +12,7 @@ class ClipStorage:
 
     def __init__(self):
         # Use local storage in user's home directory
-        self.db_path = os.path.join(os.getcwd(), ".smart-clipboard", "lancedb")
+        self.db_path = os.path.join(os.getcwd(), ".panclip", "lancedb")
         os.makedirs(self.db_path, exist_ok=True)
 
         self.db = None
