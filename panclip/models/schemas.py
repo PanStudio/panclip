@@ -1,4 +1,4 @@
-"""Data models for Smart Clipboard MCP Server."""
+"""Data models for PanClip MCP Server."""
 
 import time
 from typing import Any

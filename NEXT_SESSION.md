@@ -1,4 +1,4 @@
-# Smart Clipboard MCP Server - Session Summary & Next Steps
+# PanClip MCP Server - Session Summary & Next Steps
 
 ## Session Summary
 
@@ -18,7 +18,7 @@ This fix was validated by a complete overhaul of the project's test suite. All 3
 
 ## Next Steps: Realizing the Project Vision
 
-The full vision for the Smart Clipboard is to be a best-in-class, production-ready persistent memory for AI agents. The following roadmap outlines the key steps to achieve this.
+The full vision for the PanClip is to be a best-in-class, production-ready persistent memory for AI agents. The following roadmap outlines the key steps to achieve this.
 
 ### Tier 1: Enhance Core Functionality & Configuration
 

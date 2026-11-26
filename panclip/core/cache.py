@@ -16,8 +16,6 @@ class ClipCache:
     def _initialize_backend(self):
         """Initialize cache backend with Redis fallback to memory."""
         try:
-            import redis.asyncio as redis
-
             self.backend = RedisCache()
         except ImportError:
             print("Redis not available, using in-memory cache")
@@ -90,7 +88,7 @@ class RedisCache:
             return None
 
         try:
-            value = await self.redis.get(f"smart_clipboard:{key}")
+            value = await self.redis.get(f"panclip:{key}")
             return json.loads(value) if value else None
         except Exception:
             return None
@@ -102,7 +100,7 @@ class RedisCache:
 
         try:
             serialized = json.dumps(value, default=str)
-            await self.redis.setex(f"smart_clipboard:{key}", ttl, serialized)
+            await self.redis.setex(f"panclip:{key}", ttl, serialized)
         except Exception:
             pass
 
@@ -112,17 +110,17 @@ class RedisCache:
             return
 
         try:
-            await self.redis.delete(f"smart_clipboard:{key}")
+            await self.redis.delete(f"panclip:{key}")
         except Exception:
             pass
 
     async def clear(self):
-        """Clear all smart_clipboard keys."""
+        """Clear all panclip keys."""
         if not await self._ensure_connected():
             return
 
         try:
-            keys = await self.redis.keys("smart_clipboard:*")
+            keys = await self.redis.keys("panclip:*")
             if keys:
                 await self.redis.delete(*keys)
         except Exception:

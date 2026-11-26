@@ -12,7 +12,7 @@ class ClipStorage:
 
     def __init__(self):
         # Use local storage in user's home directory
-        self.db_path = os.path.join(os.getcwd(), ".smart-clipboard", "lancedb")
+        self.db_path = os.path.join(os.getcwd(), ".panclip", "lancedb")
         os.makedirs(self.db_path, exist_ok=True)
 
         self.db = None
@@ -39,22 +39,24 @@ class ClipStorage:
                 # Create empty table with proper schema
                 import pyarrow as pa
 
-                schema = pa.schema([
-                    ("id", pa.string()),
-                    ("content", pa.string()),
-                    ("embedding", pa.list_(pa.float32(), 768)),
-                    ("tags", pa.list_(pa.string())),
-                    ("timestamp", pa.float64()),
-                    ("source", pa.string()),
-                    ("is_agent", pa.bool_()),
-                ])
+                schema = pa.schema(
+                    [
+                        ("id", pa.string()),
+                        ("content", pa.string()),
+                        ("embedding", pa.list_(pa.float32(), 768)),
+                        ("tags", pa.list_(pa.string())),
+                        ("timestamp", pa.float64()),
+                        ("source", pa.string()),
+                        ("is_agent", pa.bool_()),
+                    ]
+                )
 
                 self.table = self.db.create_table("clips", schema=schema)
                 # Remove LanceDB "getting started" entry if it exists
                 try:
                     self.table.delete("id = 'init'")
                 except Exception:
-                    pass # Ignore if it doesn't exist
+                    pass  # Ignore if it doesn't exist
             else:
                 self.table = self.db.open_table("clips")
 
@@ -168,7 +170,11 @@ class ClipStorage:
                             if len(row["content"]) > 200
                             else row["content"]
                         ),
-                        "tags": row.get("tags", []).tolist() if hasattr(row.get("tags", []), 'tolist') else row.get("tags", []),
+                        "tags": (
+                            row.get("tags", []).tolist()
+                            if hasattr(row.get("tags", []), "tolist")
+                            else row.get("tags", [])
+                        ),
                         "timestamp": row.get("timestamp", 0),
                         "source": row.get("source", "unknown"),
                     }

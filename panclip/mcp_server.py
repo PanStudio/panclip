@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smart Clipboard MCP Server - Production Implementation."""
+"""PanClip MCP Server - Production Implementation."""
 
 import asyncio
 import hashlib
@@ -13,13 +13,13 @@ from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from smart_clipboard.core.cache import ClipCache
-from smart_clipboard.core.intelligence import UniversalIntelligence
-from smart_clipboard.core.storage import ClipStorage
+from panclip.core.cache import ClipCache
+from panclip.core.intelligence import UniversalIntelligence
+from panclip.core.storage import ClipStorage
 
 
-class SmartClipboardMCPServer:
-    """Production-ready MCP Server for Smart Clipboard."""
+class PanClipMCPServer:
+    """Production-ready MCP Server for PanClip."""
 
     def __init__(self):
         """Initialize MCP server with proper protocol compliance."""
@@ -28,7 +28,7 @@ class SmartClipboardMCPServer:
         self.cache = ClipCache()
 
         # Initialize MCP server with proper name
-        self.app = Server("smart-clipboard")
+        self.app = Server("panclip")
         self._register_handlers()
 
     def _register_handlers(self):
@@ -46,7 +46,7 @@ class SmartClipboardMCPServer:
                         "properties": {
                             "content": {
                                 "type": "string",
-                                "description": "Content to store in smart clipboard",
+                                "description": "Content to store in PanClip",
                             },
                             "source": {
                                 "type": "string",
@@ -289,7 +289,7 @@ class SmartClipboardMCPServer:
                 read_stream,
                 write_stream,
                 InitializationOptions(
-                    server_name="smart-clipboard",
+                    server_name="panclip",
                     server_version="1.0.0",
                     capabilities=self.app.get_capabilities(
                         notification_options=NotificationOptions(),
@@ -301,7 +301,7 @@ class SmartClipboardMCPServer:
 
 async def async_main():
     """Main async entry point."""
-    server = SmartClipboardMCPServer()
+    server = PanClipMCPServer()
     await server.run()
 
 
@@ -310,7 +310,7 @@ def main():
     try:
         asyncio.run(async_main())
     except KeyboardInterrupt:
-        print("Smart Clipboard MCP Server stopped")
+        print("PanClip MCP Server stopped")
     except Exception as e:
         print(f"Server error: {e}")
         raise

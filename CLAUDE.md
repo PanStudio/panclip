@@ -1,10 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code when working with the Smart Clipboard MCP Server.
+This file provides guidance to Claude Code when working with the PanClip MCP Server.
 
 ## Project Overview
 
-Smart Clipboard gives AI agents persistent memory through intelligent clipboard management. When working with Claude, context is lost between conversations. This server solves that by providing a searchable, persistent memory that agents can write to and read from across sessions.
+PanClip gives AI agents persistent memory through intelligent clipboard management. When working with Claude, context is lost between conversations. This server solves that by providing a searchable, persistent memory that agents can write to and read from across sessions.
 
 **Current Status: Working with LM Studio Integration**
 
@@ -30,13 +30,13 @@ Smart Clipboard gives AI agents persistent memory through intelligent clipboard 
 
 ```bash
 # For Claude Desktop users
-claude mcp add smart-clipboard --uvx https://github.com/akougkas/smart-clipboard-mcp.git
+claude mcp add panclip -- uvx --from git+https://github.com/PanStudio/panclip.git panclip
 
 # For development
-git clone https://github.com/akougkas/smart-clipboard-mcp.git
-cd smart-clipboard-mcp
+git clone https://github.com/PanStudio/panclip.git
+cd panclip
 uv sync
-uv run smart-clipboard
+uv run panclip
 ```
 
 ## Essential Commands
@@ -47,18 +47,18 @@ uv run smart-clipboard
 uv sync
 
 # Run the MCP server
-uv run smart-clipboard
+uv run panclip
 
 # Run tests
 PYTHONPATH=. uv run pytest
 
 # Run specific test
-PYTHONPATH=. uv run pytest smart_clipboard/tests/test_mcp.py -v
+PYTHONPATH=. uv run pytest panclip/tests/test_mcp.py -v
 
 # Test MCP functionality end-to-end
 python3 -c "
 import subprocess, json
-server = subprocess.Popen(['uv', 'run', 'smart-clipboard'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+server = subprocess.Popen(['uv', 'run', 'panclip'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
 # Initialize and test tools...
 "
 ```
@@ -66,31 +66,31 @@ server = subprocess.Popen(['uv', 'run', 'smart-clipboard'], stdin=subprocess.PIP
 ### Code Quality
 ```bash
 # Format code
-uv run black smart_clipboard/
+uv run black panclip/
 
 # Lint code
 uv run ruff check .
 
 # Run all checks
-uv run black smart_clipboard/ && uv run ruff check . && PYTHONPATH=. uv run pytest
+uv run black panclip/ && uv run ruff check . && PYTHONPATH=. uv run pytest
 ```
 
 ## Architecture
 
 ```
-Claude Desktop ──MCP stdio──> Smart Clipboard ──> LanceDB
+Claude Desktop ──MCP stdio──> PanClip ──> LanceDB
                                     │
                                     └──> LiteLLM ──> AI Provider
 ```
 
 ### Key Components
 
-- **`smart_clipboard/mcp_server.py`** - MCP stdio server implementation
-- **`smart_clipboard/core/storage.py`** - LanceDB vector storage
-- **`smart_clipboard/core/intelligence.py`** - LiteLLM AI integration
-- **`smart_clipboard/core/cache.py`** - High-performance caching
-- **`smart_clipboard/core/ai_detector.py`** - AI provider auto-detection
-- **`smart_clipboard/models/schemas.py`** - Pydantic data models
+- **`panclip/mcp_server.py`** - MCP stdio server implementation
+- **`panclip/core/storage.py`** - LanceDB vector storage
+- **`panclip/core/intelligence.py`** - LiteLLM AI integration
+- **`panclip/core/cache.py`** - High-performance caching
+- **`panclip/core/ai_detector.py`** - AI provider auto-detection
+- **`panclip/models/schemas.py`** - Pydantic data models
 
 ### MCP Tools
 
@@ -115,18 +115,19 @@ Claude Desktop ──MCP stdio──> Smart Clipboard ──> LanceDB
 PYTHONPATH=. uv run pytest
 
 # With coverage
-PYTHONPATH=. uv run pytest --cov=smart_clipboard --cov-report=html
+PYTHONPATH=. uv run pytest --cov=panclip --cov-report=html
 
 # Specific test
-PYTHONPATH=. uv run pytest smart_clipboard/tests/test_mcp.py::TestSmartClipboardServer::test_add_clip_fast_response -v
+PYTHONPATH=. uv run pytest panclip/tests/test_mcp.py::TestPanClipServer::test_add_clip_fast_response -v
 ```
 
 ## Author
 
-**Antonios Kougkas**
+**Anthony Kougkas**
 - GitHub: [@akougkas](https://github.com/akougkas)
 - Website: [akougkas.io](https://akougkas.io)
-- Email: a.kougkas@gmail.com
+- Issues: [github.com/PanStudio/panclip/issues](https://github.com/PanStudio/panclip/issues)
+- Security reports: [private vulnerability reporting](https://github.com/PanStudio/panclip/security/advisories/new)
 
 ## Notes for Claude Code
 

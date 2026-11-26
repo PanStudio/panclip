@@ -1,12 +1,11 @@
 """Tests for LiteLLM intelligence layer."""
 
-import asyncio
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from smart_clipboard.core.ai_detector import AIProvider
-from smart_clipboard.core.intelligence import UniversalIntelligence
+from panclip.core.ai_detector import AIProvider
+from panclip.core.intelligence import UniversalIntelligence
 
 
 @pytest.fixture
@@ -24,12 +23,16 @@ def mock_provider():
 @pytest.fixture
 def intelligence(mock_provider):
     """Fixture to create a UniversalIntelligence instance with a mocked detector and router."""
-    with patch("smart_clipboard.core.intelligence.AIDetector") as mock_ai_detector, \
-         patch("smart_clipboard.core.intelligence.Router") as mock_router:
+    with (
+        patch("panclip.core.intelligence.AIDetector") as mock_ai_detector,
+        patch("panclip.core.intelligence.Router") as mock_router,
+    ):
 
         # Configure the mock AI detector
         mock_detector_instance = mock_ai_detector.return_value
-        mock_detector_instance.detect_all_providers = AsyncMock(return_value=[mock_provider])
+        mock_detector_instance.detect_all_providers = AsyncMock(
+            return_value=[mock_provider]
+        )
         mock_detector_instance.get_best_providers.return_value = {
             "local_embedding": mock_provider,
             "cloud_embedding": None,
@@ -57,7 +60,9 @@ class TestClipIntelligence:
         mock_response.data = [{"embedding": [0.1, 0.2, 0.3]}]
         intelligence.router.aembedding.return_value = mock_response
 
-        result = await intelligence.generate_embedding("test content that is long enough")
+        result = await intelligence.generate_embedding(
+            "test content that is long enough"
+        )
 
         assert result == [0.1, 0.2, 0.3]
         intelligence.router.aembedding.assert_called_once()
@@ -67,7 +72,9 @@ class TestClipIntelligence:
         """Test embedding fallback when LiteLLM fails."""
         intelligence.router.aembedding.side_effect = Exception("API Error")
 
-        result = await intelligence.generate_embedding("test content that is long enough")
+        result = await intelligence.generate_embedding(
+            "test content that is long enough"
+        )
 
         assert result is not None
         assert len(result) == 768
@@ -76,7 +83,7 @@ class TestClipIntelligence:
     @pytest.mark.asyncio
     async def test_generate_embedding_without_litellm(self):
         """Test embedding generation when LiteLLM is not available."""
-        with patch("smart_clipboard.core.intelligence.LITELLM_AVAILABLE", False):
+        with patch("panclip.core.intelligence.LITELLM_AVAILABLE", False):
             intel = UniversalIntelligence()
             result = await intel.generate_embedding("test content that is long enough")
 
@@ -89,7 +96,7 @@ class TestClipIntelligence:
         mock_response = Mock()
         mock_choice = Mock()
         mock_message = Mock()
-        mock_message.content = '''["python", "web", "tutorial"]'''
+        mock_message.content = """["python", "web", "tutorial"]"""
         mock_choice.message = mock_message
         mock_response.choices = [mock_choice]
         intelligence.router.acompletion.return_value = mock_response
@@ -164,7 +171,7 @@ class TestClipIntelligence:
         mock_response = Mock()
         mock_choice = Mock()
         mock_message = Mock()
-        mock_message.content = '''["tag1", "tag2", "tag3", "tag4", "tag5", "tag6"]'''
+        mock_message.content = """["tag1", "tag2", "tag3", "tag4", "tag5", "tag6"]"""
         mock_choice.message = mock_message
         mock_response.choices = [mock_choice]
         intelligence.router.acompletion.return_value = mock_response

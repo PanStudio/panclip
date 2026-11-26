@@ -70,4 +70,5 @@ temp/
 tmp/
 
 # ChromaDB
-chroma/.smart-clipboard/
+chroma/
+.panclip/
