@@ -59,11 +59,6 @@ class AIDetector:
                 "models_endpoint": "/v1/models",
             },
             {
-                "name": "lmstudio_network",
-                "api_base": "http://192.168.86.20:1234",  # User's detected server
-                "models_endpoint": "/v1/models",
-            },
-            {
                 "name": "ollama",
                 "api_base": os.getenv("OLLAMA_API_BASE", "http://localhost:11434"),
                 "models_endpoint": "/api/tags",

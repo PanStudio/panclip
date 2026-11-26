@@ -4,7 +4,7 @@ Give AI agents persistent memory with intelligent clipboard management.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--06--18-orange.svg)](https://modelcontextprotocol.io)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 ## Why Smart Clipboard?
 
@@ -28,19 +28,19 @@ When working with AI agents like Claude, context is lost between conversations. 
 
 ```bash
 # Install from GitHub
-claude mcp add smart-clipboard --uvx https://github.com/akougkas/smart-clipboard-mcp.git
+claude mcp add smart-clipboard --uvx https://github.com/PanStudio/panclip.git
 
 # Or clone and run locally
-git clone https://github.com/akougkas/smart-clipboard-mcp.git
-cd smart-clipboard-mcp
+git clone https://github.com/PanStudio/panclip.git
+cd panclip
 claude mcp add smart-clipboard stdio "uv --directory $(pwd) run smart-clipboard"
 ```
 
 ### For Development
 
 ```bash
-git clone https://github.com/akougkas/smart-clipboard-mcp.git
-cd smart-clipboard-mcp
+git clone https://github.com/PanStudio/panclip.git
+cd panclip
 uv sync
 uv run smart-clipboard
 ```
@@ -76,7 +76,7 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 # Local models (Ollama/LM Studio)
 export OLLAMA_API_BASE="http://localhost:11434"
-export LMSTUDIO_API_BASE="http://192.168.86.20:1234"
+export LMSTUDIO_API_BASE="http://localhost:1234"
 ```
 
 Edit `config.yaml` for advanced settings:
@@ -138,14 +138,17 @@ Contributions welcome! This aims to be a reference implementation for MCP server
 
 ## Author
 
-**Antonios Kougkas**
+**Anthony Kougkas**
 - GitHub: [@akougkas](https://github.com/akougkas)
 - Website: [akougkas.io](https://akougkas.io)
-- Email: a.kougkas@gmail.com
+- Issues: [github.com/PanStudio/panclip/issues](https://github.com/PanStudio/panclip/issues)
+- Security reports: [private vulnerability reporting](https://github.com/PanStudio/panclip/security/advisories/new)
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file.
+Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+Copyright 2025-2026 PanStudio
 
 ## Acknowledgments
 

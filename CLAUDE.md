@@ -30,11 +30,11 @@ Smart Clipboard gives AI agents persistent memory through intelligent clipboard 
 
 ```bash
 # For Claude Desktop users
-claude mcp add smart-clipboard --uvx https://github.com/akougkas/smart-clipboard-mcp.git
+claude mcp add smart-clipboard --uvx https://github.com/PanStudio/panclip.git
 
 # For development
-git clone https://github.com/akougkas/smart-clipboard-mcp.git
-cd smart-clipboard-mcp
+git clone https://github.com/PanStudio/panclip.git
+cd panclip
 uv sync
 uv run smart-clipboard
 ```
@@ -123,10 +123,11 @@ PYTHONPATH=. uv run pytest smart_clipboard/tests/test_mcp.py::TestSmartClipboard
 
 ## Author
 
-**Antonios Kougkas**
+**Anthony Kougkas**
 - GitHub: [@akougkas](https://github.com/akougkas)
 - Website: [akougkas.io](https://akougkas.io)
-- Email: a.kougkas@gmail.com
+- Issues: [github.com/PanStudio/panclip/issues](https://github.com/PanStudio/panclip/issues)
+- Security reports: [private vulnerability reporting](https://github.com/PanStudio/panclip/security/advisories/new)
 
 ## Notes for Claude Code
 
