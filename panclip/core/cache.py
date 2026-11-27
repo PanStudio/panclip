@@ -54,8 +54,10 @@ class MemoryCache:
 class RedisCache:
     """Shared cache at a configured Redis URL; any Redis failure is a cache miss."""
 
-    def __init__(self, url: str):
+    def __init__(self, url: str, prefix: str = PREFIX):
         import redis.asyncio as redis
+
+        self.prefix = prefix
 
         self.redis = redis.from_url(
             url, decode_responses=True, socket_connect_timeout=2, socket_timeout=2
@@ -69,18 +71,18 @@ class RedisCache:
             return default
 
     async def get_generation(self) -> int:
-        value = await self._try(self.redis.get(PREFIX + "gen"))
+        value = await self._try(self.redis.get(self.prefix + "gen"))
         return int(value or 0)
 
     async def bump_generation(self) -> None:
-        await self._try(self.redis.incr(PREFIX + "gen"))
+        await self._try(self.redis.incr(self.prefix + "gen"))
 
     async def get(self, key: str) -> Any | None:
-        value = await self._try(self.redis.get(PREFIX + key))
+        value = await self._try(self.redis.get(self.prefix + key))
         return json.loads(value) if value else None
 
     async def set(self, key: str, value: Any, ttl: int) -> None:
-        await self._try(self.redis.set(PREFIX + key, json.dumps(value), ex=ttl))
+        await self._try(self.redis.set(self.prefix + key, json.dumps(value), ex=ttl))
 
     async def close(self) -> None:
         await self._try(self.redis.aclose())
@@ -89,9 +91,16 @@ class RedisCache:
 class SearchCache:
     """Caches search results under the current write generation."""
 
-    def __init__(self, redis_url: str | None = None, ttl: int = 600):
+    def __init__(
+        self, redis_url: str | None = None, ttl: int = 600, namespace: str = ""
+    ):
+        """namespace keeps stores that share one Redis apart."""
         self.ttl = ttl
-        self.backend = RedisCache(redis_url) if redis_url else MemoryCache()
+        self.backend = (
+            RedisCache(redis_url, f"{PREFIX}{namespace}:")
+            if redis_url
+            else MemoryCache()
+        )
 
     @property
     def kind(self) -> str:

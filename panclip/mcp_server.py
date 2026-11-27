@@ -129,7 +129,8 @@ class PanClipServer(MCPServer):
 def build_server(settings: Settings) -> PanClipServer:
     storage = ClipStorage(settings.data_dir)
     intelligence = Intelligence(settings)
-    cache = SearchCache(settings.redis_url)
+    store_id = hashlib.sha256(str(settings.data_dir.resolve()).encode()).hexdigest()
+    cache = SearchCache(settings.redis_url, namespace=store_id[:16])
     write_lock = asyncio.Lock()
     leaves_machine = settings.allow_cloud
     local_note = (
