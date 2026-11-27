@@ -23,17 +23,13 @@ classifiers = [
 ]
 
 dependencies = [
-    "mcp>=1.9.4,<2",
-    "lancedb>=0.7.0",
-    "litellm[proxy]>=1.76.0",
+    "mcp>=2.2,<3",
+    "lancedb>=0.41.0",
+    "pyarrow>=16.0.0",
+    "litellm>=1.76.0",
     "redis>=5.0.0",
-    "msgpack>=1.0.0",
     "pydantic>=2.0.0",
-    "pyyaml>=6.0.0",
-    "pandas>=2.0.0",
     "httpx>=0.28.0",
-    "python-dotenv>=1.1.0",
-    "rich>=13.0.0",
 ]
 
 [project.scripts]
@@ -64,6 +60,11 @@ dev = [
 
 [tool.uv]
 package = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["panclip/tests"]
 
 [tool.black]
 line-length = 88
