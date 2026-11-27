@@ -51,6 +51,7 @@ async def test_tool_metadata(tmp_path, mode):
     assert tools["clip_remove"].annotations.destructive_hint is True
     for name in ("clip_search", "clip_list", "clip_stats"):
         assert tools[name].annotations.read_only_hint is True
+        assert tools[name].annotations.destructive_hint is False
     assert not any(tool.annotations.open_world_hint for tool in tools.values())
     content = tools["clip_add"].input_schema["properties"]["content"]
     assert content["maxLength"] == 50_000
@@ -298,6 +299,8 @@ async def test_stdout_carries_only_protocol_frames_modern(tmp_path):
     server = await start_raw(tmp_path)
     discovered = await server.send("server/discover", {"_meta": MODERN_META})
     assert "2026-07-28" in json.dumps(discovered["result"])
+    assert discovered["result"]["capabilities"]["tools"]["listChanged"] is False
+    assert discovered["result"]["ttlMs"] == 3_600_000
     tools = await server.send("tools/list", {"_meta": MODERN_META})
     assert len(tools["result"]["tools"]) == 5
     await cycle(server, MODERN_META)

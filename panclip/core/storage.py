@@ -1,8 +1,10 @@
 """LanceDB storage for clips."""
 
 import logging
+import math
 import re
 import time
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -95,7 +97,8 @@ class ClipStorage:
                     .to_list()
                 )
                 ids = [row["id"] for row in oldest if CLIP_ID.fullmatch(row["id"])]
-                removed += self.table.delete(col("id").isin(ids)).num_deleted_rows
+                if ids:
+                    removed += self.table.delete(col("id").isin(ids)).num_deleted_rows
         return removed
 
     def search(
@@ -112,7 +115,10 @@ class ClipStorage:
             .to_list()
         )
         for row in rows:
-            row["score"] = round(1.0 - row.pop("_distance", 1.0), 3)
+            distance = row.pop("_distance", 1.0)
+            if distance is None or not math.isfinite(distance):
+                distance = 1.0
+            row["score"] = round(1.0 - distance, 3)
         return rows
 
     def list_recent(
@@ -143,8 +149,31 @@ class ClipStorage:
     def get_stats(self) -> dict[str, Any]:
         """Counts, content length, top tags and time span; never the storage path."""
         columns = ["content", "tags", "timestamp", "is_agent", "embedder"]
-        data = self.table.search().select(columns).limit(None).to_arrow()
-        total = data.num_rows
+        total = 0
+        agent = 0
+        total_chars = 0
+        tag_counts: Counter[str] = Counter()
+        embedder_counts: Counter[str] = Counter()
+        oldest: float | None = None
+        newest: float | None = None
+        for batch in self.table.search().select(columns).limit(None).to_batches():
+            if batch.num_rows == 0:
+                continue
+            total += batch.num_rows
+            agent += pc.sum(pc.cast(batch["is_agent"], pa.int64())).as_py() or 0
+            total_chars += pc.sum(pc.utf8_length(batch["content"])).as_py() or 0
+            for item in pc.value_counts(pc.list_flatten(batch["tags"])).to_pylist():
+                if item["values"] is not None:
+                    tag_counts[item["values"]] += item["counts"]
+            for item in pc.value_counts(batch["embedder"]).to_pylist():
+                if item["values"] is not None:
+                    embedder_counts[item["values"]] += item["counts"]
+            batch_min = pc.min(batch["timestamp"]).as_py()
+            batch_max = pc.max(batch["timestamp"]).as_py()
+            if batch_min is not None:
+                oldest = batch_min if oldest is None else min(oldest, batch_min)
+            if batch_max is not None:
+                newest = batch_max if newest is None else max(newest, batch_max)
         if total == 0:
             return {
                 "total_clips": 0,
@@ -156,25 +185,14 @@ class ClipStorage:
                 "oldest_clip": None,
                 "newest_clip": None,
             }
-        agent = pc.sum(pc.cast(data["is_agent"], pa.int64())).as_py() or 0
-        tag_counts = pc.value_counts(pc.list_flatten(data["tags"])).to_pylist()
-        top = sorted(tag_counts, key=lambda item: (-item["counts"], item["values"]))[
-            :10
-        ]
+        top = sorted(tag_counts.items(), key=lambda item: (-item[1], item[0]))[:10]
         return {
             "total_clips": total,
             "agent_clips": agent,
             "manual_clips": total - agent,
-            "avg_content_length": round(
-                pc.mean(pc.utf8_length(data["content"])).as_py(), 1
-            ),
-            "top_tags": [
-                {"tag": item["values"], "count": item["counts"]} for item in top
-            ],
-            "clips_by_embedder": {
-                item["values"]: item["counts"]
-                for item in pc.value_counts(data["embedder"]).to_pylist()
-            },
-            "oldest_clip": pc.min(data["timestamp"]).as_py(),
-            "newest_clip": pc.max(data["timestamp"]).as_py(),
+            "avg_content_length": round(total_chars / total, 1),
+            "top_tags": [{"tag": tag, "count": count} for tag, count in top],
+            "clips_by_embedder": dict(embedder_counts),
+            "oldest_clip": oldest,
+            "newest_clip": newest,
         }

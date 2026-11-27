@@ -175,8 +175,13 @@ def build_server(settings: Settings) -> PanClipServer:
         description="Persistent, searchable memory for AI agents",
         instructions=instructions(settings),
         website_url="https://github.com/PanStudio/panclip",
+        log_level=settings.log_level,
         lifespan=lifespan,
-        cache_hints={"tools/list": CacheHint(ttl_ms=3_600_000, scope="private")},
+        subscriptions=False,
+        cache_hints={
+            "server/discover": CacheHint(ttl_ms=3_600_000, scope="private"),
+            "tools/list": CacheHint(ttl_ms=3_600_000, scope="private"),
+        },
     )
 
     async def embed(text: str) -> list[float]:
@@ -264,6 +269,7 @@ def build_server(settings: Settings) -> PanClipServer:
         ),
         annotations=ToolAnnotations(
             read_only_hint=True,
+            destructive_hint=False,
             idempotent_hint=True,
             open_world_hint=leaves_machine,
         ),
@@ -331,7 +337,10 @@ def build_server(settings: Settings) -> PanClipServer:
             "with next_cursor."
         ),
         annotations=ToolAnnotations(
-            read_only_hint=True, idempotent_hint=True, open_world_hint=False
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
         ),
     )
     async def clip_list(
@@ -412,7 +421,10 @@ def build_server(settings: Settings) -> PanClipServer:
             "retention limits in force."
         ),
         annotations=ToolAnnotations(
-            read_only_hint=True, idempotent_hint=True, open_world_hint=False
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
         ),
     )
     async def clip_stats() -> StatsResult:
