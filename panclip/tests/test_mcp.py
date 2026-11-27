@@ -1,7 +1,9 @@
 import asyncio
+import base64
 import json
 import os
 import sys
+import uuid
 from types import SimpleNamespace
 
 import pytest
@@ -153,6 +155,34 @@ async def test_cursor_is_bound_to_its_query(tmp_path):
         assert cursor
         wrong = await call(session, "clip_search", query="beta", cursor=cursor)
         assert "different query" in error_text(wrong)
+
+
+async def test_crafted_cursors_are_refused(tmp_path):
+    def raw_cursor(text: str) -> str:
+        return base64.urlsafe_b64encode(text.encode()).decode().rstrip("=")
+
+    async with client(tmp_path) as session:
+        for i in range(2):
+            await call(session, "clip_add", content=f"alpha {i}")
+        page = await call(session, "clip_search", query="alpha", limit=1)
+        cursor = page.structured_content["next_cursor"]
+        qhash = json.loads(base64.urlsafe_b64decode(cursor + "=="))["q"]
+        cid = str(uuid.uuid4())
+        for bad in (
+            raw_cursor(f'{{"t": NaN, "i": "{cid}"}}'),
+            raw_cursor(f'{{"t": Infinity, "i": "{cid}"}}'),
+            raw_cursor(f'{{"t": true, "i": "{cid}"}}'),
+        ):
+            assert "cursor is not valid" in error_text(
+                await call(session, "clip_list", cursor=bad)
+            )
+        for bad in (
+            raw_cursor(json.dumps({"q": qhash, "o": True})),
+            raw_cursor(json.dumps({"q": qhash, "o": 2**64})),
+        ):
+            assert "cursor is not valid" in error_text(
+                await call(session, "clip_search", query="alpha", cursor=bad)
+            )
 
 
 async def test_provider_failure_stores_nothing(tmp_path, monkeypatch):

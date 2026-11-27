@@ -6,6 +6,7 @@ import binascii
 import hashlib
 import json
 import logging
+import math
 import re
 import sys
 import time
@@ -44,6 +45,7 @@ logger = logging.getLogger("panclip")
 MAX_TAGS = 20
 TAG_CHARS = 64
 QUERY_CHARS = 2000
+MAX_SEARCH_OFFSET = 10_000_000
 REDACTION_PLACEHOLDER = re.compile(r"(\[REDACTED:\w+\])")
 
 
@@ -101,9 +103,16 @@ def encode_cursor(data: dict[str, Any]) -> str:
     return base64.urlsafe_b64encode(raw).decode().rstrip("=")
 
 
+def _reject_constant(token: str) -> Any:
+    raise ValueError(f"non-finite JSON constant: {token}")
+
+
 def decode_cursor(cursor: str) -> dict[str, Any]:
     try:
-        data = json.loads(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)))
+        data = json.loads(
+            base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)),
+            parse_constant=_reject_constant,
+        )
     except (binascii.Error, ValueError):
         data = None
     if not isinstance(data, dict):
@@ -281,9 +290,17 @@ def build_server(settings: Settings) -> PanClipServer:
         if cursor:
             data = decode_cursor(cursor)
             offset = data.get("o")
-            if data.get("q") != query_hash or not isinstance(offset, int) or offset < 0:
+            if data.get("q") != query_hash:
                 raise ToolError(
                     "cursor belongs to a different query; repeat the search without cursor"
+                )
+            if (
+                isinstance(offset, bool)
+                or not isinstance(offset, int)
+                or not 0 <= offset <= MAX_SEARCH_OFFSET
+            ):
+                raise ToolError(
+                    "cursor is not valid; pass next_cursor from an earlier result"
                 )
         key, cached = await cache.lookup(embedder, query, limit, offset, max_chars)
         if cached is not None:
@@ -331,7 +348,12 @@ def build_server(settings: Settings) -> PanClipServer:
         if cursor:
             data = decode_cursor(cursor)
             timestamp, clip_id = data.get("t"), data.get("i")
-            if not isinstance(timestamp, (int, float)) or not isinstance(clip_id, str):
+            if (
+                isinstance(timestamp, bool)
+                or not isinstance(timestamp, (int, float))
+                or not math.isfinite(timestamp)
+                or not isinstance(clip_id, str)
+            ):
                 raise ToolError(
                     "cursor is not valid; pass next_cursor from an earlier result"
                 )
