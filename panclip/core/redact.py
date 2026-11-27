@@ -27,7 +27,7 @@ KNOWN_FORMATS: list[tuple[str, re.Pattern[str]]] = [
     ("npm_token", re.compile(r"\bnpm_[A-Za-z0-9]{36}\b")),
     ("api_key", re.compile(r"\bsk-(?:ant-|proj-|svcacct-|admin-)?[\w-]{20,}")),
 ]
-URL_PASSWORD = re.compile(r"\b([a-z][a-z0-9+.-]*://[^\s:/?#@]+:)([^\s@/?#]+)(@)", re.I)
+URL_PASSWORD = re.compile(r"\b([a-z][a-z0-9+.-]*://[^\s:/?#@]*:)([^\s@/?#]+)(@)", re.I)
 AUTH_HEADER = re.compile(
     r"\b((?:authorization|proxy-authorization)[\"']?\s*[:=]\s*[\"']?"
     r"(?:bearer|basic|token|digest)\s+)([\w.~+/=-]{8,})",

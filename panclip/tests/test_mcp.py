@@ -71,14 +71,15 @@ async def test_add_search_list_remove_cycle(tmp_path, mode):
             session,
             "clip_add",
             content=secret_note,
-            tags=["Ops"],
+            tags=["Ops", "AKIAIOSFODNN7EXAMPLE"],
             source="agent",
         )
         assert not added.is_error
         clip = added.structured_content
         assert clip["status"] == "stored"
-        assert clip["redactions"] == {"github_token": 1}
-        assert clip["tags"][0] == "ops"
+        assert clip["redactions"] == {"github_token": 1, "aws_access_key": 1}
+        assert clip["tags"][:2] == ["ops", "[REDACTED:aws_access_key]"]
+        assert "AKIAIOSFODNN7EXAMPLE" not in json.dumps(clip)
         for i in range(3):
             await call(session, "clip_add", content=f"note {i} " + "y" * 300)
 

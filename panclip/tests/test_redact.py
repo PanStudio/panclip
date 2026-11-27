@@ -14,6 +14,7 @@ SECRETS = [
     ),
     ("Authorization: Bearer abcdef1234567890abcdef", "auth_header"),
     ("postgres://admin:s3cretPass@db.example.com/app", "url_password"),
+    ("redis://:s3cretPass@localhost:6379/0", "url_password"),
     ("https://x.io/cb?page=2&access_token=abc123def456", "url_query_secret"),
     ("DB_PASSWORD=supersecret", "secret_assignment"),
     ('password = "hunter22"', "secret_assignment"),

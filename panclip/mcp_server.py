@@ -6,6 +6,7 @@ import binascii
 import hashlib
 import json
 import logging
+import re
 import sys
 import time
 import uuid
@@ -43,6 +44,16 @@ logger = logging.getLogger("panclip")
 MAX_TAGS = 20
 TAG_CHARS = 64
 QUERY_CHARS = 2000
+REDACTION_PLACEHOLDER = re.compile(r"(\[REDACTED:\w+\])")
+
+
+def normalize_tag(tag: str) -> tuple[str, dict[str, int]]:
+    redacted, found = redact(tag.strip())
+    parts = REDACTION_PLACEHOLDER.split(redacted)
+    normalized = "".join(
+        part if i % 2 else part.lower() for i, part in enumerate(parts)
+    )
+    return normalized, found
 
 
 def instructions(settings: Settings) -> str:
@@ -200,7 +211,7 @@ def build_server(settings: Settings) -> PanClipServer:
         content, redactions = redact(content)
         given: list[str] = []
         for tag in tags:
-            clean, found = redact(tag.strip().lower())
+            clean, found = normalize_tag(tag)
             for kind, count in found.items():
                 redactions[kind] = redactions.get(kind, 0) + count
             if clean and clean not in given:
