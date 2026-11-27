@@ -51,6 +51,8 @@ def probes(monkeypatch):
         ("http://192.168.1.10:1234", False),
         ("https://api.example.com", False),
         ("http://localhost.example.com", False),
+        ("file://localhost/etc/passwd", False),
+        ("ftp://localhost:1234", False),
     ],
 )
 def test_loopback(url, expected):
@@ -113,6 +115,37 @@ async def test_wrong_dimension_is_refused(provider):
     provider.aembedding = aembedding
     with pytest.raises(ProviderError, match="384"):
         await Intelligence(settings()).embed("x")
+
+
+async def test_non_finite_embedding_is_refused(provider):
+    async def aembedding(**kwargs):
+        return SimpleNamespace(data=[{"embedding": [float("nan")] * 768}])
+
+    provider.aembedding = aembedding
+    with pytest.raises(ProviderError, match="non-finite"):
+        await Intelligence(settings()).embed("x")
+
+
+async def test_loopback_provider_bypasses_proxy(monkeypatch):
+    monkeypatch.delenv("NO_PROXY", raising=False)
+    monkeypatch.delenv("no_proxy", raising=False)
+
+    async def detect(self):
+        return [
+            AIProvider(
+                name="lmstudio",
+                type="local",
+                api_base="http://127.0.0.5:1234",
+                embedding_models=["embed"],
+            )
+        ]
+
+    monkeypatch.setattr(AIDetector, "detect", detect)
+    monkeypatch.setattr(intel_module, "_import_litellm", lambda: SimpleNamespace())
+    intel = Intelligence(settings())
+    await intel.ready()
+    assert "127.0.0.5" in intel_module.os.environ["NO_PROXY"].split(",")
+    assert "localhost" in intel_module.os.environ["no_proxy"].split(",")
 
 
 async def test_tag_prompt_marks_content_as_data(provider):

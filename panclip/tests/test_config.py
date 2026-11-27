@@ -44,3 +44,17 @@ def test_limits_are_bounded():
         Settings.load([], {"PANCLIP_MAX_CONTENT_CHARS": "0"})
     with pytest.raises(SystemExit):
         Settings.load([], {"PANCLIP_MAX_CLIPS": "lots"})
+
+
+def test_remote_redis_requires_allow_cloud():
+    local = Settings.load([], {"PANCLIP_REDIS_URL": "redis://:pw@localhost:6379/0"})
+    assert local.redis_url == "redis://:pw@localhost:6379/0"
+    unix = Settings.load([], {"PANCLIP_REDIS_URL": "unix:///run/redis.sock"})
+    assert unix.redis_url == "unix:///run/redis.sock"
+    with pytest.raises(SystemExit):
+        Settings.load([], {"PANCLIP_REDIS_URL": "redis://:pw@redis.example.com:6379/0"})
+    cloud = Settings.load(
+        ["--allow-cloud"],
+        {"PANCLIP_REDIS_URL": "redis://:pw@redis.example.com:6379/0"},
+    )
+    assert cloud.redis_url == "redis://:pw@redis.example.com:6379/0"

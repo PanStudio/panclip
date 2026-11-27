@@ -8,8 +8,9 @@ import math
 import os
 import re
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any
+from urllib.parse import urlsplit
 
 from panclip.config import Settings
 from panclip.core.ai_detector import AIDetector, AIProvider, pick
@@ -34,6 +35,19 @@ TAG_SYSTEM_PROMPT = (
 
 class ProviderError(Exception):
     """The selected AI provider failed; the message is safe to show the caller."""
+
+
+def _bypass_proxy_for_loopback(hosts: Iterable[str]) -> None:
+    """Keep loopback provider traffic off HTTP(S)_PROXY in local-only mode."""
+    needed = ["localhost", "127.0.0.1", "::1", *(h for h in hosts if h)]
+    for var in ("NO_PROXY", "no_proxy"):
+        current = [
+            item.strip() for item in os.environ.get(var, "").split(",") if item.strip()
+        ]
+        for host in needed:
+            if host not in current:
+                current.append(host)
+        os.environ[var] = ",".join(current)
 
 
 def _import_litellm():
@@ -73,6 +87,14 @@ class Intelligence:
         self.start()
         await asyncio.shield(self._detection)
 
+    async def close(self) -> None:
+        if self._detection is not None and not self._detection.done():
+            self._detection.cancel()
+            try:
+                await self._detection
+            except asyncio.CancelledError:
+                pass
+
     async def _detect(self) -> None:
         try:
             providers = await self.detector.detect()
@@ -81,6 +103,13 @@ class Intelligence:
             return
         self.embedding = pick(providers, "embedding")
         self.chat = pick(providers, "chat")
+        local_hosts = [
+            urlsplit(p.api_base).hostname or ""
+            for p, _ in filter(None, (self.embedding, self.chat))
+            if p.type == "local" and p.api_base
+        ]
+        if local_hosts:
+            _bypass_proxy_for_loopback(local_hosts)
         if self.embedding or self.chat:
             self._litellm = await asyncio.to_thread(_import_litellm)
         logger.info("embedder %s, tagger %s", self.embedder, self._label(self.chat))
@@ -142,6 +171,16 @@ class Intelligence:
             raise ProviderError(
                 f"the embedding model {self.embedder} returns {len(vector)} "
                 f"dimensions; PanClip stores {EMBEDDING_DIM}-dimension vectors"
+            )
+        if not all(
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+            for value in vector
+        ):
+            raise ProviderError(
+                f"the embedding model {self.embedder} returned non-finite values; "
+                "check the provider and retry"
             )
         return vector
 

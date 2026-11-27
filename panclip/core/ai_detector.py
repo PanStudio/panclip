@@ -74,14 +74,20 @@ class AIProvider:
     latency_ms: float | None = None
 
 
-def is_loopback(url: str) -> bool:
-    host = urlsplit(url).hostname or ""
+def is_loopback_host(host: str) -> bool:
     if host == "localhost":
         return True
     try:
         return ipaddress.ip_address(host).is_loopback
     except ValueError:
         return False
+
+
+def is_loopback(url: str) -> bool:
+    parsed = urlsplit(url)
+    if parsed.scheme not in ("http", "https"):
+        return False
+    return is_loopback_host(parsed.hostname or "")
 
 
 class AIDetector:

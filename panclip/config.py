@@ -5,8 +5,10 @@ import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from panclip import __version__
+from panclip.core.ai_detector import is_loopback_host
 
 TRUE = {"1", "true", "yes", "on"}
 FALSE = {"", "0", "false", "no", "off"}
@@ -82,15 +84,29 @@ class Settings:
         if log_level not in {"DEBUG", "INFO", "WARNING", "ERROR"}:
             parser.error("PANCLIP_LOG_LEVEL must be DEBUG, INFO, WARNING or ERROR")
 
+        allow_cloud = args.allow_cloud or raw_cloud in TRUE
+        redis_url = env.get("PANCLIP_REDIS_URL", "").strip() or None
+        if redis_url and not allow_cloud:
+            parsed_redis = urlsplit(redis_url)
+            local_redis = parsed_redis.scheme == "unix" or (
+                parsed_redis.scheme in ("redis", "rediss")
+                and is_loopback_host(parsed_redis.hostname or "")
+            )
+            if not local_redis:
+                parser.error(
+                    "PANCLIP_REDIS_URL must be local (loopback or unix://) unless "
+                    "cloud use is allowed"
+                )
+
         return cls(
             data_dir=data_dir,
-            allow_cloud=args.allow_cloud or raw_cloud in TRUE,
+            allow_cloud=allow_cloud,
             max_content_chars=number(
                 "PANCLIP_MAX_CONTENT_CHARS", int, 50_000, 1, 1_000_000
             ),
             max_clips=number("PANCLIP_MAX_CLIPS", int, 10_000, 0, 10_000_000),
             max_age_days=number("PANCLIP_MAX_AGE_DAYS", float, 0, 0, 36_500),
-            redis_url=env.get("PANCLIP_REDIS_URL", "").strip() or None,
+            redis_url=redis_url,
             log_level=log_level,
             request_timeout=number("PANCLIP_REQUEST_TIMEOUT", float, 30.0, 1, 600),
             max_retries=number("PANCLIP_MAX_RETRIES", int, 3, 0, 10),

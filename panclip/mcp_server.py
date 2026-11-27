@@ -156,6 +156,7 @@ def build_server(settings: Settings) -> PanClipServer:
         try:
             yield
         finally:
+            await intelligence.close()
             await cache.close()
 
     app = PanClipServer(

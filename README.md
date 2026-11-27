@@ -108,7 +108,8 @@ With cloud use allowed, redacted clip text and search queries are sent to the pr
 
 Clips live in a LanceDB table under `<data dir>/lancedb`, created readable by your user only.
 Redis is used only when `PANCLIP_REDIS_URL` is set; cached search results contain clip text,
-so use a password and a private Redis. Every write invalidates cached searches.
+so use a password and a private Redis (non-loopback Redis URLs require
+`PANCLIP_ALLOW_CLOUD=true`). Every write invalidates cached searches.
 
 ## Architecture
 
