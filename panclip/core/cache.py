@@ -1,228 +1,122 @@
-"""Fast caching layer for immediate responses."""
+"""Search result cache, invalidated by a generation counter that every write bumps."""
 
-import asyncio
+import hashlib
 import json
+import logging
 import time
+from collections import OrderedDict
 from typing import Any
 
+logger = logging.getLogger(__name__)
 
-class ClipCache:
-    """High-performance cache with Redis fallback to in-memory."""
-
-    def __init__(self):
-        self.backend = None
-        self._initialize_backend()
-
-    def _initialize_backend(self):
-        """Initialize cache backend with Redis fallback to memory."""
-        try:
-            self.backend = RedisCache()
-        except ImportError:
-            print("Redis not available, using in-memory cache")
-            self.backend = MemoryCache()
-        except Exception as e:
-            print(f"Redis connection failed: {e}, using in-memory cache")
-            self.backend = MemoryCache()
-
-    async def get(self, key: str) -> Any | None:
-        """Get value from cache."""
-        try:
-            return await self.backend.get(key)
-        except Exception as e:
-            print(f"Cache get error: {e}")
-            return None
-
-    async def set(self, key: str, value: Any, ttl: int = 3600):
-        """Set value in cache with TTL."""
-        try:
-            await self.backend.set(key, value, ttl)
-        except Exception as e:
-            print(f"Cache set error: {e}")
-
-    async def delete(self, key: str):
-        """Delete key from cache."""
-        try:
-            await self.backend.delete(key)
-        except Exception as e:
-            print(f"Cache delete error: {e}")
-
-    async def clear(self):
-        """Clear all cache entries."""
-        try:
-            await self.backend.clear()
-        except Exception as e:
-            print(f"Cache clear error: {e}")
+PREFIX = "panclip:"
 
 
-class RedisCache:
-    """Redis-based cache implementation."""
-
-    def __init__(self):
-        import redis.asyncio as redis
-
-        self.redis = redis.Redis(
-            host="localhost",
-            port=6379,
-            decode_responses=True,
-            socket_connect_timeout=2,
-            socket_timeout=2,
-        )
-        self._connected = None
-
-    async def _ensure_connected(self) -> bool:
-        """Ensure Redis connection is working."""
-        if self._connected is not None:
-            return self._connected
-
-        try:
-            await self.redis.ping()
-            self._connected = True
-            return True
-        except Exception:
-            self._connected = False
-            return False
-
-    async def get(self, key: str) -> Any | None:
-        """Get from Redis cache."""
-        if not await self._ensure_connected():
-            return None
-
-        try:
-            value = await self.redis.get(f"panclip:{key}")
-            return json.loads(value) if value else None
-        except Exception:
-            return None
-
-    async def set(self, key: str, value: Any, ttl: int = 3600):
-        """Set in Redis cache with TTL."""
-        if not await self._ensure_connected():
-            return
-
-        try:
-            serialized = json.dumps(value, default=str)
-            await self.redis.setex(f"panclip:{key}", ttl, serialized)
-        except Exception:
-            pass
-
-    async def delete(self, key: str):
-        """Delete from Redis cache."""
-        if not await self._ensure_connected():
-            return
-
-        try:
-            await self.redis.delete(f"panclip:{key}")
-        except Exception:
-            pass
-
-    async def clear(self):
-        """Clear all panclip keys."""
-        if not await self._ensure_connected():
-            return
-
-        try:
-            keys = await self.redis.keys("panclip:*")
-            if keys:
-                await self.redis.delete(*keys)
-        except Exception:
-            pass
+def search_key(*parts: Any) -> str:
+    return hashlib.sha256(json.dumps(parts).encode()).hexdigest()
 
 
 class MemoryCache:
-    """High-performance in-memory cache with LRU eviction."""
+    """In-process LRU with per-entry expiry."""
 
-    def __init__(self, max_size: int = 10000):
-        self.cache: dict[str, dict[str, Any]] = {}
-        self.access_order: dict[str, float] = {}
+    def __init__(self, max_size: int = 1000):
         self.max_size = max_size
-        self._lock = asyncio.Lock()
+        self.entries: OrderedDict[str, tuple[float, Any]] = OrderedDict()
+        self.generation = 0
+
+    async def get_generation(self) -> int:
+        return self.generation
+
+    async def bump_generation(self) -> None:
+        self.generation += 1
+        self.entries.clear()
 
     async def get(self, key: str) -> Any | None:
-        """Get from memory cache."""
-        async with self._lock:
-            if key in self.cache:
-                entry = self.cache[key]
-
-                # Check if expired
-                if time.time() > entry["expires_at"]:
-                    del self.cache[key]
-                    del self.access_order[key]
-                    return None
-
-                # Update access time for LRU
-                self.access_order[key] = time.time()
-                return entry["value"]
-
+        entry = self.entries.get(key)
+        if entry is None:
             return None
+        if entry[0] < time.monotonic():
+            del self.entries[key]
+            return None
+        self.entries.move_to_end(key)
+        return entry[1]
 
-    async def set(self, key: str, value: Any, ttl: int = 3600):
-        """Set in memory cache with TTL and LRU eviction."""
-        async with self._lock:
-            current_time = time.time()
+    async def set(self, key: str, value: Any, ttl: int) -> None:
+        self.entries[key] = (time.monotonic() + ttl, value)
+        self.entries.move_to_end(key)
+        while len(self.entries) > self.max_size:
+            self.entries.popitem(last=False)
 
-            # Clean expired entries if cache is getting full
-            if len(self.cache) >= self.max_size * 0.8:
-                await self._cleanup_expired()
+    async def close(self) -> None:
+        self.entries.clear()
 
-            # Evict oldest entries if still too full
-            if len(self.cache) >= self.max_size:
-                await self._evict_lru()
 
-            # Store new entry
-            self.cache[key] = {"value": value, "expires_at": current_time + ttl}
-            self.access_order[key] = current_time
+class RedisCache:
+    """Shared cache at a configured Redis URL; any Redis failure is a cache miss."""
 
-    async def delete(self, key: str):
-        """Delete from memory cache."""
-        async with self._lock:
-            if key in self.cache:
-                del self.cache[key]
-                del self.access_order[key]
+    def __init__(self, url: str, prefix: str = PREFIX):
+        import redis.asyncio as redis
 
-    async def clear(self):
-        """Clear all cache entries."""
-        async with self._lock:
-            self.cache.clear()
-            self.access_order.clear()
+        self.prefix = prefix
 
-    async def _cleanup_expired(self):
-        """Remove expired entries."""
-        current_time = time.time()
-        expired_keys = [
-            key
-            for key, entry in self.cache.items()
-            if current_time > entry["expires_at"]
-        ]
-
-        for key in expired_keys:
-            del self.cache[key]
-            if key in self.access_order:
-                del self.access_order[key]
-
-    async def _evict_lru(self):
-        """Evict least recently used entries."""
-        if not self.access_order:
-            return
-
-        # Sort by access time and remove oldest 20%
-        sorted_keys = sorted(self.access_order.items(), key=lambda x: x[1])
-        evict_count = max(1, len(sorted_keys) // 5)
-
-        for key, _ in sorted_keys[:evict_count]:
-            if key in self.cache:
-                del self.cache[key]
-            del self.access_order[key]
-
-    def get_stats(self) -> dict[str, Any]:
-        """Get cache statistics."""
-        current_time = time.time()
-        expired_count = sum(
-            1 for entry in self.cache.values() if current_time > entry["expires_at"]
+        self.redis = redis.from_url(
+            url, decode_responses=True, socket_connect_timeout=2, socket_timeout=2
         )
 
-        return {
-            "total_entries": len(self.cache),
-            "expired_entries": expired_count,
-            "active_entries": len(self.cache) - expired_count,
-            "max_size": self.max_size,
-            "usage_percent": round((len(self.cache) / self.max_size) * 100, 1),
-        }
+    async def _try(self, operation, default=None):
+        try:
+            return await operation
+        except Exception as error:
+            logger.warning("redis cache unavailable: %s", type(error).__name__)
+            return default
+
+    async def get_generation(self) -> int:
+        value = await self._try(self.redis.get(self.prefix + "gen"))
+        return int(value or 0)
+
+    async def bump_generation(self) -> None:
+        await self._try(self.redis.incr(self.prefix + "gen"))
+
+    async def get(self, key: str) -> Any | None:
+        value = await self._try(self.redis.get(self.prefix + key))
+        return json.loads(value) if value else None
+
+    async def set(self, key: str, value: Any, ttl: int) -> None:
+        await self._try(self.redis.set(self.prefix + key, json.dumps(value), ex=ttl))
+
+    async def close(self) -> None:
+        await self._try(self.redis.aclose())
+
+
+class SearchCache:
+    """Caches search results under the current write generation."""
+
+    def __init__(
+        self, redis_url: str | None = None, ttl: int = 600, namespace: str = ""
+    ):
+        """namespace keeps stores that share one Redis apart."""
+        self.ttl = ttl
+        self.backend = (
+            RedisCache(redis_url, f"{PREFIX}{namespace}:")
+            if redis_url
+            else MemoryCache()
+        )
+
+    @property
+    def kind(self) -> str:
+        return "redis" if isinstance(self.backend, RedisCache) else "memory"
+
+    async def lookup(self, *parts: Any) -> tuple[str, Any | None]:
+        """The cached value, and the key to store a fresh one under; a write in between orphans the key."""
+        generation = await self.backend.get_generation()
+        key = f"search:{generation}:{search_key(*parts)}"
+        return key, await self.backend.get(key)
+
+    async def store(self, key: str, value: Any) -> None:
+        await self.backend.set(key, value, self.ttl)
+
+    async def invalidate(self) -> None:
+        await self.backend.bump_generation()
+
+    async def close(self) -> None:
+        await self.backend.close()

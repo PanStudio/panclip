@@ -85,12 +85,14 @@ Claude Desktop ──MCP stdio──> PanClip ──> LanceDB
 
 ### Key Components
 
-- **`panclip/mcp_server.py`** - MCP stdio server implementation
-- **`panclip/core/storage.py`** - LanceDB vector storage
-- **`panclip/core/intelligence.py`** - LiteLLM AI integration
-- **`panclip/core/cache.py`** - High-performance caching
-- **`panclip/core/ai_detector.py`** - AI provider auto-detection
-- **`panclip/models/schemas.py`** - Pydantic data models
+- **`panclip/mcp_server.py`**: MCP stdio server (mcp 2.x, 2026-07-28 and legacy)
+- **`panclip/config.py`**: settings from environment variables and flags
+- **`panclip/core/redact.py`**: secret redaction before storage
+- **`panclip/core/storage.py`**: LanceDB vector storage
+- **`panclip/core/intelligence.py`**: LiteLLM provider calls
+- **`panclip/core/cache.py`**: search cache invalidated on every write
+- **`panclip/core/ai_detector.py`**: AI provider detection, loopback only unless cloud is allowed
+- **`panclip/models/schemas.py`**: structured tool results
 
 ### MCP Tools
 
@@ -102,8 +104,8 @@ Claude Desktop ──MCP stdio──> PanClip ──> LanceDB
 
 ## Design Principles
 
-1. **Fast Response**: All operations return in <10ms via caching
-2. **Graceful Fallbacks**: Works offline with local embeddings
+1. **Local by Default**: Only loopback AI servers unless PANCLIP_ALLOW_CLOUD is set; offline without one
+2. **No Silent Fallbacks**: A failing provider is a tool error; vectors from different models are never mixed
 3. **Agent-First**: Optimized for AI agent interactions
 4. **Zero Config**: Works out of the box with auto-detection
 5. **Universal AI**: Supports 100+ providers via LiteLLM
@@ -118,7 +120,7 @@ PYTHONPATH=. uv run pytest
 PYTHONPATH=. uv run pytest --cov=panclip --cov-report=html
 
 # Specific test
-PYTHONPATH=. uv run pytest panclip/tests/test_mcp.py::TestPanClipServer::test_add_clip_fast_response -v
+PYTHONPATH=. uv run pytest panclip/tests/test_mcp.py::test_crafted_id_is_refused_and_deletes_nothing -v
 ```
 
 ## Author
@@ -134,6 +136,6 @@ PYTHONPATH=. uv run pytest panclip/tests/test_mcp.py::TestPanClipServer::test_ad
 - This server provides persistent memory across your sessions
 - Content is automatically tagged and indexed for semantic search
 - The server handles all AI operations in the background
-- Falls back to local processing when APIs are unavailable
+- Secrets are redacted before storing; stdout carries only MCP messages, logs go to stderr
 - Optimized for storing code, configurations, and technical content
 - never never add AI coders or agents in my git commit messages!!!

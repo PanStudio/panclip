@@ -3,7 +3,7 @@
 Give AI agents persistent memory with intelligent clipboard management.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![MCP Protocol](https://img.shields.io/badge/MCP-2025--06--18-orange.svg)](https://modelcontextprotocol.io)
+[![MCP Protocol](https://img.shields.io/badge/MCP-2026--07--28%20%2B%20legacy-orange.svg)](https://modelcontextprotocol.io)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 ## Why PanClip?
@@ -14,13 +14,13 @@ When working with AI agents like Claude, context is lost between conversations. 
 
 ## Key Features
 
-- **Persistent Memory**: Store code, configs, and solutions across Claude sessions
-- **Semantic Search**: Find content using natural language, not keywords
-- **Auto-Tagging**: AI automatically categorizes content for better retrieval
-- **Fast**: <1ms response times with intelligent caching
-- **Works Offline**: Falls back to local embeddings when APIs are unavailable
-- **Universal AI Support**: Auto-detects OpenAI, Anthropic, Ollama, LM Studio, and 100+ providers
-- ✅ Production-ready error handling and logging
+- **Persistent Memory**: Store code, configs, and solutions across sessions
+- **Semantic Search**: Find content using natural language, with a local embedding model or offline word matching
+- **Auto-Tagging**: Topic tags from a local chat model, or keyword rules offline
+- **Local by Default**: Only AI servers on a loopback address (LM Studio, Ollama, vLLM, text-generation-webui, KoboldCpp) are used unless you allow cloud providers
+- **Secret Redaction**: API keys, tokens, private keys and passwords are replaced with `[REDACTED:<kind>]` before anything is stored or sent to a model
+- **Bounded Storage**: Size cap per clip, and count and age retention limits
+- **MCP 2026-07-28 and earlier**: Serves both the stateless 2026-07-28 protocol and the `initialize` handshake of earlier revisions over stdio
 
 ## Installation
 
@@ -57,70 +57,81 @@ List: "Show my recent code snippets"
 
 ### Available MCP Tools
 
-- `clip_add` - Store content with automatic tagging
-- `clip_search` - Semantic search through stored content
-- `clip_list` - List recent clips
-- `clip_remove` - Remove specific clips
-- `clip_stats` - Storage statistics
+| Tool | What it does | Annotations |
+| --- | --- | --- |
+| `clip_add` | Stores text (redacted, tagged, embedded) and returns its id once the write is durable | writes |
+| `clip_search` | Natural-language search, best match first; pages with `cursor` | read only |
+| `clip_list` | Newest clips first with a short preview; pages with `cursor` | read only |
+| `clip_remove` | Deletes one clip by id | destructive |
+| `clip_stats` | Counts, top tags, provider mode and the limits in force | read only |
+
+Every tool returns structured content with an output schema. Clip text comes back in a
+`stored_content` field marked as stored data, cut to `max_chars` with a `truncated` flag.
+Failures are tool errors (`isError`) with a recovery hint and never repeat the arguments.
 
 ## Configuration
 
-The server auto-detects available AI providers. To use specific providers, set environment variables:
+PanClip is configured by environment variables and two flags; it reads no config file and
+no `.env` file. Put variables in the `env` block of your MCP client's server entry.
+[`.env.example`](.env.example) lists them all with their defaults.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `--data-dir` or `PANCLIP_DATA_DIR` | `$XDG_DATA_HOME/panclip`, else `~/.local/share/panclip` | Absolute data directory, the same whatever the launch directory |
+| `--allow-cloud` or `PANCLIP_ALLOW_CLOUD` | off | Allow cloud providers and non-loopback servers |
+| `PANCLIP_MAX_CONTENT_CHARS` | 50000 | Longest clip accepted |
+| `PANCLIP_MAX_CLIPS` | 10000 | Oldest clips beyond this are deleted after each write; 0 keeps all |
+| `PANCLIP_MAX_AGE_DAYS` | 0 | Clips older than this are deleted after each write; 0 keeps all |
+| `PANCLIP_REDIS_URL` | unset | Shared search cache, for example `redis://:password@localhost:6379/0` |
+| `PANCLIP_REQUEST_TIMEOUT`, `PANCLIP_MAX_RETRIES` | 30, 3 | Provider call timeout in seconds, and retries |
+| `PANCLIP_LOG_LEVEL` | WARNING | Logs go to stderr; stdout carries only MCP messages |
+| `LMSTUDIO_API_BASE`, `OLLAMA_API_BASE`, `VLLM_API_BASE`, `TEXTGEN_API_BASE`, `KOBOLDCPP_API_BASE` | the usual localhost ports | Local servers to probe |
+| `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `COHERE_API_KEY`, `GROQ_API_KEY` | unset | Read only when cloud use is allowed |
 
 ```bash
-# OpenAI (recommended for best embeddings)
-export OPENAI_API_KEY="sk-..."
-
-# Anthropic
-export ANTHROPIC_API_KEY="sk-ant-..."
-
-# Local models (Ollama/LM Studio)
-export OLLAMA_API_BASE="http://localhost:11434"
-export LMSTUDIO_API_BASE="http://localhost:1234"
+claude mcp add panclip --env PANCLIP_MAX_AGE_DAYS=90 -- uvx --from git+https://github.com/PanStudio/panclip.git panclip
 ```
 
-Edit `config.yaml` for advanced settings:
+### Providers and privacy
 
-```yaml
-intelligence:
-  embedding_model: "text-embedding-3-small"
-  tagging_model: "gpt-3.5-turbo"
+At start PanClip probes the local servers above in the background. The first one offering an
+embedding model embeds clips, and the first offering a chat model tags them. With none running,
+PanClip works offline. Search only compares clips embedded by the current model, and
+`clip_stats` shows how many clips each model embedded. If the selected provider fails, the tool
+returns an error and stores nothing, rather than mixing in vectors from another model.
 
-storage:
-  path: "~/.panclip/lancedb"
+A cloud API key or a non-loopback `*_API_BASE` is ignored unless `PANCLIP_ALLOW_CLOUD=true`.
+With cloud use allowed, redacted clip text and search queries are sent to the provider, and
+`clip_add` and `clip_search` are annotated as reaching outside the machine.
 
-cache:
-  backend: "memory"  # or "redis" if available
-```
+### Data
+
+Clips live in a LanceDB table under `<data dir>/lancedb`, created readable by your user only.
+Redis is used only when `PANCLIP_REDIS_URL` is set; cached search results contain clip text,
+so use a password and a private Redis (non-loopback Redis URLs require
+`PANCLIP_ALLOW_CLOUD=true`). Every write invalidates cached searches.
 
 ## Architecture
 
 ```
-Claude Desktop ──MCP──> PanClip ──> LanceDB (vectors)
+MCP client ───stdio───> PanClip ──> LanceDB (vectors)
                               │
                               └──> LiteLLM ──> AI Provider
 ```
 
 - **MCP Protocol**: Native stdio communication with Claude
 - **LanceDB**: Local vector database for semantic search
-- **LiteLLM**: Universal router for 100+ AI providers
-- **Smart Caching**: Memory cache for instant responses
-
-## Performance
-
-- Response time: <1ms (cached), <10ms (uncached)
-- Search latency: <20ms across 100k clips
-- Memory usage: <50MB for 10k clips
-- Startup time: <2 seconds
+- **LiteLLM**: Calls the selected provider; imported only when one is found
+- **Search Cache**: In-process, or Redis when configured; invalidated on every write
 
 ## Development
 
 ```bash
 # Run tests
-PYTHONPATH=. uv run pytest
+uv run pytest
 
 # Format code
-uv run black panclip/
+uv run black .
 
 # Lint
 uv run ruff check .

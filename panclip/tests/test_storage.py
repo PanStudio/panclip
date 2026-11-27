@@ -1,128 +1,83 @@
-"""Tests for LanceDB storage backend."""
-
-import shutil
-import tempfile
-from unittest.mock import patch
+import stat
+import time
+import uuid
 
 import pytest
 
+from panclip.core.intelligence import offline_embedding
 from panclip.core.storage import ClipStorage
+
+EMBEDDER = "offline/test"
 
 
 @pytest.fixture
-def temp_db_path(monkeypatch):
-    """Create a temporary directory for the LanceDB database and set the env var."""
-    temp_dir = tempfile.mkdtemp()
-    # Patch getcwd to make ClipStorage use the temp directory
-    monkeypatch.setattr("os.getcwd", lambda: temp_dir)
-    yield temp_dir
-    shutil.rmtree(temp_dir, ignore_errors=True)
+def storage(tmp_path):
+    return ClipStorage(tmp_path)
 
 
-class TestClipStorage:
-    """Test LanceDB storage functionality."""
+def add(storage, content, timestamp=None, embedder=EMBEDDER, tags=()):
+    record = {
+        "id": str(uuid.uuid4()),
+        "content": content,
+        "embedding": offline_embedding(content),
+        "tags": list(tags),
+        "timestamp": time.time() if timestamp is None else timestamp,
+        "source": "agent",
+        "is_agent": True,
+        "embedder": embedder,
+    }
+    storage.add(record)
+    return record["id"]
 
-    @pytest.mark.asyncio
-    async def test_storage_initialization(self, temp_db_path):
-        """Test storage initialization creates the database and table."""
-        storage = ClipStorage()
-        await storage._ensure_initialized()
-        assert storage._initialized is True
-        assert storage.table.count_rows() == 0
 
-    @pytest.mark.asyncio
-    async def test_store_and_search_clip(self, temp_db_path):
-        """Test storing a clip and then searching for it."""
-        storage = ClipStorage()
-        await storage._ensure_initialized()
+def test_store_directory_is_private(storage, tmp_path):
+    add(storage, "hello")
+    assert stat.S_IMODE((tmp_path / "lancedb").stat().st_mode) == 0o700
 
-        clip_id = "test_clip_1"
-        content = "This is a test clip for storage and search."
-        embedding = [0.1] * 768
-        tags = ["test", "lancedb"]
-        metadata = {"source": "manual", "timestamp": 100}
 
-        store_result = await storage.store(clip_id, content, embedding, tags, metadata)
-        assert store_result is True
+def test_crafted_id_is_refused_and_deletes_nothing(storage):
+    for i in range(3):
+        add(storage, f"clip {i}")
+    for crafted in ["x' OR '1'='1", "' OR id IS NOT NULL OR '", "%"]:
+        with pytest.raises(ValueError):
+            storage.remove(crafted)
+    assert storage.table.count_rows() == 3
 
-        search_results = await storage.search(embedding, limit=1)
-        assert len(search_results) == 1
-        assert search_results[0]["id"] == clip_id
 
-    @pytest.mark.asyncio
-    async def test_store_clip_without_embedding(self, temp_db_path):
-        """Test storing clip without embedding uses zero-vector fallback."""
-        storage = ClipStorage()
-        await storage._ensure_initialized()
+def test_remove_deletes_exactly_one(storage):
+    keep, drop = add(storage, "keep"), add(storage, "drop")
+    assert storage.remove(drop)
+    assert not storage.remove(drop)
+    assert [row["id"] for row in storage.list_recent(10)] == [keep]
 
-        with patch.object(storage.table, "add") as mock_add:
-            result = await storage.store(
-                "test_clip", "content", None, [], {"timestamp": 100}
-            )
-            assert result is True
 
-            call_args = mock_add.call_args[0][0][0]
-            assert call_args["embedding"] == [0.0] * 768
+def test_search_only_compares_vectors_from_the_same_embedder(storage):
+    mine = add(storage, "alpha")
+    add(storage, "alpha", embedder="other/model")
+    rows = storage.search(offline_embedding("alpha"), EMBEDDER, 10, 0)
+    assert [row["id"] for row in rows] == [mine]
+    assert rows[0]["score"] == 1.0
 
-    @pytest.mark.asyncio
-    async def test_list_recent_clips(self, temp_db_path):
-        """Test listing recent clips with proper sorting."""
-        storage = ClipStorage()
-        await storage._ensure_initialized()
 
-        await storage.store("c1", "first", [0.1] * 768, [], {"timestamp": 100})
-        await storage.store("c2", "second", [0.2] * 768, [], {"timestamp": 200})
-        await storage.store("c3", "third", [0.3] * 768, [], {"timestamp": 150})
+def test_list_pages_by_key(storage):
+    now = time.time()
+    ids = [add(storage, f"clip {i}", timestamp=now + i) for i in range(5)]
+    first = storage.list_recent(2)
+    second = storage.list_recent(2, (first[-1]["timestamp"], first[-1]["id"]))
+    assert [row["id"] for row in first + second] == ids[::-1][:4]
 
-        results = await storage.list_recent(limit=2)
-        assert len(results) == 2
-        assert results[0]["id"] == "c2"
 
-    @pytest.mark.asyncio
-    async def test_remove_clip(self, temp_db_path):
-        """Test clip removal functionality."""
-        storage = ClipStorage()
-        await storage._ensure_initialized()
+def test_retention_drops_oldest_and_expired(storage):
+    now = time.time()
+    add(storage, "ancient", timestamp=now - 10 * 86400)
+    ids = [add(storage, f"clip {i}", timestamp=now + i) for i in range(4)]
+    assert storage.enforce_retention(max_clips=2, max_age_days=5) == 3
+    assert {row["id"] for row in storage.list_recent(10)} == set(ids[2:])
 
-        clip_id = "clip_to_remove"
-        await storage.store(clip_id, "content", [0.1] * 768, [], {"timestamp": 100})
 
-        remove_result = await storage.remove(clip_id)
-        assert remove_result is True
-
-        count = storage.table.count_rows()
-        assert count == 0
-
-    @pytest.mark.asyncio
-    async def test_get_stats(self, temp_db_path):
-        """Test statistics generation."""
-        storage = ClipStorage()
-        await storage._ensure_initialized()
-
-        await storage.store(
-            "c1",
-            "short",
-            [0.1] * 768,
-            ["a"],
-            {"source": "agent", "is_agent": True, "timestamp": 100},
-        )
-        await storage.store(
-            "c2",
-            "longer",
-            [0.2] * 768,
-            ["a", "b"],
-            {"source": "agent", "is_agent": True, "timestamp": 200},
-        )
-        await storage.store(
-            "c3",
-            "longest",
-            [0.3] * 768,
-            ["b"],
-            {"source": "manual", "is_agent": False, "timestamp": 150},
-        )
-
-        stats = await storage.get_stats()
-
-        assert stats["total_clips"] == 3
-        assert stats["agent_clips"] == 2
-        assert stats["manual_clips"] == 1
+def test_stats_never_include_the_path(storage, tmp_path):
+    add(storage, "abc", tags=["x"])
+    stats = storage.get_stats()
+    assert stats["total_clips"] == 1
+    assert stats["top_tags"] == [{"tag": "x", "count": 1}]
+    assert str(tmp_path) not in repr(stats)
