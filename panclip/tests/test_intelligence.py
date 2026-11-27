@@ -6,7 +6,12 @@ import pytest
 from panclip.config import Settings
 from panclip.core import intelligence as intel_module
 from panclip.core.ai_detector import AIDetector, AIProvider, is_loopback
-from panclip.core.intelligence import Intelligence, ProviderError, clean_tags
+from panclip.core.intelligence import (
+    Intelligence,
+    ProviderError,
+    clean_tags,
+    offline_embedding,
+)
 
 REAL_DETECT = AIDetector.detect
 LOCAL = AIProvider(
@@ -130,3 +135,16 @@ async def test_tag_prompt_marks_content_as_data(provider):
 
 def test_clean_tags_rejects_non_lists():
     assert clean_tags({"a": 1}) == []
+
+
+def test_offline_embedding_ranks_by_shared_words():
+    def cosine(a, b):
+        return sum(x * y for x, y in zip(a, b))
+
+    query = offline_embedding("restart the nginx reverse proxy")
+    near = offline_embedding("To restart nginx after editing the reverse proxy config")
+    far = offline_embedding("pandas dataframe groupby aggregation")
+    assert cosine(query, near) > 0.4 > 0.1 > cosine(query, far)
+    assert abs(cosine(near, near) - 1.0) < 1e-9
+    assert offline_embedding("getUserName") == offline_embedding("get user name")
+    assert len(offline_embedding("")) == 768

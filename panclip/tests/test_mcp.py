@@ -82,7 +82,7 @@ async def test_add_search_list_remove_cycle(tmp_path, mode):
         for i in range(3):
             await call(session, "clip_add", content=f"note {i} " + "y" * 300)
 
-        found = await call(session, "clip_search", query=secret_note, limit=1)
+        found = await call(session, "clip_search", query="how do I deploy", limit=1)
         hits = found.structured_content["results"]
         assert hits and "[REDACTED:github_token]" in hits[0]["stored_content"]["text"]
         assert "ghp_" not in json.dumps(found.structured_content)

@@ -4,8 +4,10 @@ import asyncio
 import hashlib
 import json
 import logging
+import math
 import os
 import re
+from collections import Counter
 from collections.abc import Mapping
 from typing import Any
 
@@ -15,10 +17,12 @@ from panclip.core.storage import EMBEDDING_DIM
 
 logger = logging.getLogger(__name__)
 
-OFFLINE_EMBEDDER = "offline/md5-v1"
+OFFLINE_EMBEDDER = "offline/hashed-words-v1"
 EMBED_INPUT_CHARS = 8000
 TAG_INPUT_CHARS = 1000
 MAX_TAGS = 5
+WORDS = re.compile(r"[a-z0-9]+")
+CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 TAG_CHARS = re.compile(r"[^a-z0-9+#._ -]")
 REDACTION_MARK = re.compile(r"\[REDACTED:\w+\]")
 TAG_SYSTEM_PROMPT = (
@@ -170,8 +174,21 @@ class Intelligence:
 
 
 def offline_embedding(text: str) -> list[float]:
-    digest = hashlib.md5(text.encode()).digest()
-    return [(digest[i % len(digest)] - 128) / 128.0 for i in range(EMBEDDING_DIM)]
+    """Hashed word and word-pair features, L2-normalised, so clips sharing words rank close."""
+    words = WORDS.findall(CAMEL_BOUNDARY.sub(" ", text).lower())
+    features = Counter(words)
+    features.update(f"{a} {b}" for a, b in zip(words, words[1:]))
+    vector = [0.0] * EMBEDDING_DIM
+    for feature, count in features.items():
+        digest = hashlib.blake2b(feature.encode(), digest_size=8).digest()
+        index = int.from_bytes(digest[:4], "little") % EMBEDDING_DIM
+        weight = (1.0 if " " not in feature else 0.5) * math.sqrt(count)
+        vector[index] += weight if digest[4] & 1 else -weight
+    norm = math.sqrt(sum(value * value for value in vector))
+    if norm == 0:
+        vector[0] = 1.0
+        return vector
+    return [value / norm for value in vector]
 
 
 RULE_TAGS = {
