@@ -72,7 +72,9 @@ class StatsResult(BaseModel):
     oldest_clip: str | None
     newest_clip: str | None
     provider_mode: str = Field(description="detecting, offline, local or cloud")
-    embedder: str
+    embedder: str | None = Field(
+        description="Embedder for new clips; null until provider detection finishes"
+    )
     cloud_allowed: bool
     cache: str = Field(description="memory or redis")
     max_content_chars: int

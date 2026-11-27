@@ -382,6 +382,7 @@ def build_server(settings: Settings) -> PanClipServer:
     )
     async def clip_stats() -> StatsResult:
         stats = await asyncio.to_thread(storage.get_stats)
+        mode = intelligence.mode
         return StatsResult(
             total_clips=stats["total_clips"],
             agent_clips=stats["agent_clips"],
@@ -391,8 +392,8 @@ def build_server(settings: Settings) -> PanClipServer:
             clips_by_embedder=stats["clips_by_embedder"],
             oldest_clip=iso(stats["oldest_clip"]),
             newest_clip=iso(stats["newest_clip"]),
-            provider_mode=intelligence.mode,
-            embedder=intelligence.embedder,
+            provider_mode=mode,
+            embedder=None if mode == "detecting" else intelligence.embedder,
             cloud_allowed=settings.allow_cloud,
             cache=cache.kind,
             max_content_chars=settings.max_content_chars,
